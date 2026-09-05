@@ -1,7 +1,7 @@
 package com.snaphere.api.event.jpa;
 
 import com.snaphere.api.event.EventLifecycle;
-import com.snaphere.api.event.entity.EventEntity;
+import com.snaphere.api.event.EventSnapshots;
 import com.snaphere.api.event.repository.EventRepository;
 import com.snaphere.api.place.EventSnapshot;
 import com.snaphere.api.place.EventSnapshotReader;
@@ -35,14 +35,6 @@ public class JpaEventSnapshotReader implements EventSnapshotReader {
     public Optional<EventSnapshot> findById(long eventId) {
         return events.findById(eventId)
                 .filter(event -> event.getStatus() == EventLifecycle.ACTIVE)
-                .map(JpaEventSnapshotReader::toSnapshot);
-    }
-
-    private static EventSnapshot toSnapshot(EventEntity event) {
-        return new EventSnapshot(
-                event.getEventId(),
-                event.getVerifyRadiusM(),
-                event.getAreaCode(),
-                event.getPlaceId());
+                .map(EventSnapshots::of);
     }
 }

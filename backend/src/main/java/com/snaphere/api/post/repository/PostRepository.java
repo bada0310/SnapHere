@@ -63,6 +63,31 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
                               @Param("cursorPostId") Long cursorPostId,
                               Pageable pageable);
 
+    /**
+     * 행사에 참여한 공개 게시글. 최신순. (EVT-014)
+     *
+     * <p>{@link #findFeed} 에 {@code eventId} 를 더하지 않고 메서드를 나눴다. findFeed 는
+     * 피드·태그·장소 세 곳이 쓰고 테스트도 그 시그니처에 묶여 있어, 파라미터 하나를 늘리면
+     * 이 슬라이스와 무관한 코드 다섯 곳이 함께 바뀐다. 여기 필터는 {@code eventId} 하나뿐이라
+     * 조건을 복사해도 갈라질 여지가 작다.
+     *
+     * <p>커서 비교의 {@code cast} 는 findFeed 와 같은 이유다 — PostgreSQL 은 {@code IS NULL}
+     * 에만 쓰인 시각 파라미터의 타입을 추론하지 못한다.
+     */
+    @Query("""
+            select p from PostEntity p
+             where p.status = com.snaphere.api.post.PostStatus.ACTIVE
+               and p.eventId = :eventId
+               and (cast(:cursorCreatedAt as timestamp) is null
+                    or p.createdAt < :cursorCreatedAt
+                    or (p.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+             order by p.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findEventPosts(@Param("eventId") Long eventId,
+                                    @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                    @Param("cursorPostId") Long cursorPostId,
+                                    Pageable pageable);
+
     /** 장소 상세의 게시글 그리드. (PLC-013) */
     List<PostEntity> findByPlaceIdAndStatusOrderByCreatedAtDescPostIdDesc(
             Long placeId, PostStatus status, Pageable pageable);

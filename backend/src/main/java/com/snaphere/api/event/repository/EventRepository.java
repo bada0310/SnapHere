@@ -88,6 +88,36 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                                                   @Param("newSince") OffsetDateTime newSince);
 
     /**
+     * 현재 위치 주변에서 진행·예정 중인 행사. 가까운 순. (EVT-015)
+     *
+     * <p>행사장은 {@code places} 에 있으므로 좌표 조건은 그쪽에 건다. 좌표 없는 장소는
+     * {@code geom} 이 null 이라 자연히 빠진다 (PLC-007).
+     *
+     * <p><b>콜론 두 개 캐스트를 쓰지 않는다.</b> 네이티브 쿼리에서 {@code :} 는 명명 파라미터
+     * 접두어라 {@code ::geography} 가 파라미터로 잘못 읽힌다. PostGIS 의 {@code geography(...)}
+     * 생성 함수로 같은 일을 한다 — 장소 주변 검색이 이미 같은 이유로 이 형태를 쓴다.
+     *
+     * <p>종료된 행사는 뺀다. 주변에 있어도 갈 수 없는 행사를 지도에 찍을 이유가 없다.
+     */
+    @Query(value = """
+            select e.* from events e
+              join places p on p.place_id = e.place_id
+             where e.status = 'ACTIVE'
+               and e.end_date >= :today
+               and p.status = 'ACTIVE'
+               and p.geom is not null
+               and st_dwithin(p.geom, geography(st_setsrid(st_makepoint(:lng, :lat), 4326)), :radiusM)
+             order by st_distance(p.geom, geography(st_setsrid(st_makepoint(:lng, :lat), 4326))),
+                      e.start_date, e.event_id
+             limit :limit
+            """, nativeQuery = true)
+    List<EventEntity> findNearby(@Param("lat") double lat,
+                                 @Param("lng") double lng,
+                                 @Param("radiusM") int radiusM,
+                                 @Param("today") LocalDate today,
+                                 @Param("limit") int limit);
+
+    /**
      * {@link #findRegionSummary} 결과 한 행.
      *
      * <p>{@code getNewCount} 만 래퍼 타입이다. 행사가 없는 시도에서 {@code sum} 은 0 이 아니라
