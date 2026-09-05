@@ -10,6 +10,7 @@ import com.snaphere.api.common.web.TraceIdFilter;
 import com.snaphere.api.event.dto.EventDetailResponse;
 import com.snaphere.api.event.dto.EventRegionSummaryResponse;
 import com.snaphere.api.event.dto.EventSummaryResponse;
+import com.snaphere.api.event.dto.EventUploadContextResponse;
 import com.snaphere.api.post.dto.PostSummaryResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
@@ -26,8 +27,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * API-EVT-001 · API-EVT-002 · API-EVT-003 · API-EVT-004 · API-EVT-006 — 이벤트.
- * (EVT-002, EVT-005 ~ EVT-015)
+ * API-EVT-001 ~ API-EVT-006 — 이벤트. (EVT-002, EVT-005 ~ EVT-020)
  *
  * <p>비회원도 본다. 응답이 요청자에 따라 달라지지 않으므로 공용 캐시에 10분 올려도 된다
  * (명세 캐시·멱등 열). 신규 강조가 최대 10분 늦게 붙지만, 매 스크롤마다 17개 시도를
@@ -43,17 +43,20 @@ public class EventController {
     private final EventDetailService eventDetailService;
     private final EventPostService eventPostService;
     private final EventNearbyService eventNearbyService;
+    private final EventUploadContextService eventUploadContextService;
     private final CurrentUserProvider currentUserProvider;
 
     public EventController(EventQueryService eventQueryService,
                            EventDetailService eventDetailService,
                            EventPostService eventPostService,
                            EventNearbyService eventNearbyService,
+                           EventUploadContextService eventUploadContextService,
                            CurrentUserProvider currentUserProvider) {
         this.eventQueryService = eventQueryService;
         this.eventDetailService = eventDetailService;
         this.eventPostService = eventPostService;
         this.eventNearbyService = eventNearbyService;
+        this.eventUploadContextService = eventUploadContextService;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -150,6 +153,28 @@ public class EventController {
                 eventPostService.postsOf(id, cursor, size, viewerId);
 
         return ResponseEntity.ok(ApiResponse.ok(page,
+                TraceIdFilter.currentTraceId(httpRequest)));
+    }
+
+    /**
+     * 행사 참여 업로드 컨텍스트. (EVT-012, EVT-016 ~ EVT-020)
+     *
+     * <p>명세가 이 엔드포인트에만 Bearer 를 요구한다(API-EVT-005). SecurityConfig 는
+     * {@code GET /api/v1/**} 를 permitAll 로 두므로 컨트롤러에서 {@code require} 로 막는다 —
+     * 태그 추천(API-CMU-011)이 같은 이유로 같은 방식을 쓴다. 글을 쓰기 직전에만 부르는
+     * 조회라 비회원에게 열어 둘 이유가 없다.
+     */
+    @GetMapping("/{eventId}/upload-context")
+    public ResponseEntity<ApiResponse<EventUploadContextResponse>> uploadContext(
+            @PathVariable String eventId,
+            HttpServletRequest httpRequest) {
+
+        CurrentUser user = currentUserProvider.require(httpRequest);
+        long id = ExternalIds.parse(eventId, "evt", ErrorCode.EVENT_NOT_FOUND);
+
+        EventUploadContextResponse context = eventUploadContextService.of(id, user.userId());
+
+        return ResponseEntity.ok(ApiResponse.ok(context,
                 TraceIdFilter.currentTraceId(httpRequest)));
     }
 }
