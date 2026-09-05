@@ -44,6 +44,9 @@ public enum ErrorCode {
     PLACE_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "error.place.dailyLimit"),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "error.event.notFound"),
 
+    // 뱃지 (BDG-013)
+    BADGE_NOT_FOUND(HttpStatus.NOT_FOUND, "error.badge.notFound"),
+
     // 지도
     MAP_INVALID_BOUNDS(HttpStatus.UNPROCESSABLE_ENTITY, "error.map.invalidBounds"),
 

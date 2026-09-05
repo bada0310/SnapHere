@@ -92,6 +92,48 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
     List<PostEntity> findByPlaceIdAndStatusOrderByCreatedAtDescPostIdDesc(
             Long placeId, PostStatus status, Pageable pageable);
 
+    /**
+     * 뱃지 조건 평가에 쓰는 집계. (BDG-002 ~ BDG-004, BDG-007)
+     *
+     * <p>낮음 등급은 전부 제외한다 (PST-026). 반경 밖에서 올린 글로 뱃지를 모을 수 있으면
+     * 현장 인증이라는 전제가 무너진다.
+     *
+     * <p>세 메서드가 같은 조건을 공유해 한 곳에 모아 뒀다 — 하나만 등급 조건을 빠뜨리면
+     * 뱃지 종류에 따라 기준이 달라진다.
+     */
+    @Query("select count(p) from PostEntity p "
+            + "where p.userId = :userId and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countEligibleByUser(@Param("userId") UUID userId);
+
+    @Query("select count(p) from PostEntity p "
+            + "where p.userId = :userId and p.areaCode = :areaCode "
+            + "  and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countEligibleByUserAndArea(@Param("userId") UUID userId,
+                                    @Param("areaCode") Integer areaCode);
+
+    /**
+     * 게시글을 남긴 시도 수. 완주 뱃지(BDG-003)의 진행값이다.
+     *
+     * <p>방문 기록(visits)이 아니라 게시글로 센다. VST 도메인이 아직 이 브랜치에 없고, 방문
+     * 기록 자체가 "높음·보통 게시글을 올리면 남는" 것이라 같은 집합이다 (VST-001). visits 가
+     * develop 에 들어오면 그쪽으로 옮기는 편이 정확하다 — 같은 장소를 여러 번 올려도 방문은
+     * 하루 한 번이기 때문이다.
+     */
+    @Query("select count(distinct p.areaCode) from PostEntity p "
+            + "where p.userId = :userId and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countDistinctAreasByUser(@Param("userId") UUID userId);
+
+    /** 행사 참여 여부. 행사 뱃지(BDG-001)의 진행값이다. */
+    @Query("select count(p) from PostEntity p "
+            + "where p.userId = :userId and p.eventId = :eventId "
+            + "  and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countEligibleByUserAndEvent(@Param("userId") UUID userId,
+                                     @Param("eventId") Long eventId);
+
     /** 프로필 그리드. (USER-008) */
     List<PostEntity> findByUserIdAndStatusOrderByCreatedAtDescPostIdDesc(
             UUID userId, PostStatus status, Pageable pageable);
