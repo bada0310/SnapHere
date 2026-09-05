@@ -41,4 +41,33 @@ class CommentCursorTest {
                 .satisfies(t -> assertThat(((ApiException) t).errorCode())
                         .isEqualTo(ErrorCode.COMMON_400));
     }
+
+    @Test
+    @DisplayName("마이크로초를 잃지 않는다 — 밀리초로 자르면 같은 밀리초의 댓글이 다음 페이지에서 통째로 빠진다")
+    void keepsSubMillisecondPrecision() {
+        java.time.OffsetDateTime at =
+                java.time.OffsetDateTime.parse("2026-09-05T12:34:56.123456+09:00");
+        CommentCursor decoded = CommentCursor.decode(new CommentCursor(at, 9301L).encode());
+
+        org.assertj.core.api.Assertions.assertThat(decoded).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(decoded.createdAt().toInstant())
+                .isEqualTo(at.toInstant());
+        org.assertj.core.api.Assertions.assertThat(decoded.createdAt().toInstant().getNano())
+                .isEqualTo(123_456_000);
+        org.assertj.core.api.Assertions.assertThat(decoded.commentId()).isEqualTo(9301L);
+    }
+
+    @Test
+    @DisplayName("이 수정 이전에 발급한 두 토막 커서도 계속 받는다 — 앱이 들고 있던 커서가 400 이 되면 목록이 처음으로 튄다")
+    void acceptsLegacyMillisecondCursor() {
+        String legacy = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                ("1788000000000:" + 9301L).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        CommentCursor decoded = CommentCursor.decode(legacy);
+
+        org.assertj.core.api.Assertions.assertThat(decoded).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(decoded.createdAt().toInstant().toEpochMilli())
+                .isEqualTo(1788000000000L);
+        org.assertj.core.api.Assertions.assertThat(decoded.commentId()).isEqualTo(9301L);
+    }
 }
