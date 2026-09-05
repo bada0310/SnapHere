@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,9 +56,14 @@ public class BadgeQueryService {
     public BadgeCollectionResponse collection(UUID ownerId, String category, String language) {
         BadgeType type = BadgeType.parseOrNull(category);
 
-        List<BadgeEntity> rows = type == null
+        List<BadgeEntity> rows = new ArrayList<>(type == null
                 ? badges.findCollection(ownerId)
-                : badges.findCollectionByType(ownerId, type);
+                : badges.findCollectionByType(ownerId, type));
+
+        // 화면의 분류 순서는 행사 → 지역 → 완주 → 기록이다 (기능 명세 4.4). DB 정렬은
+        // enum 을 문자열로 비교해 AREA 가 먼저 나오므로 여기서 다시 세운다.
+        rows.sort(Comparator.comparingInt((BadgeEntity b) -> b.getType().ordinal())
+                .thenComparing(BadgeEntity::getBadgeId));
         Map<Long, OffsetDateTime> earnedAt = earnedAtByBadgeId(ownerId, rows);
 
         List<BadgeSummaryResponse> items = new ArrayList<>(rows.size());
