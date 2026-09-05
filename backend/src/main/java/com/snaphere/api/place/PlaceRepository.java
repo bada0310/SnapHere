@@ -102,6 +102,23 @@ public class PlaceRepository {
                 .orElseThrow(() -> new ApiException(ErrorCode.PLACE_NOT_FOUND));
     }
 
+    /**
+     * 여러 장소를 한 번에. 순서는 보장하지 않는다 — 부르는 쪽이 원하는 순서로 다시 세운다.
+     *
+     * <p>최근 본 장소(VST-006)처럼 ID 목록을 먼저 갖고 오는 화면이 쓴다. 한 건씩 부르면 페이지
+     * 크기만큼 쿼리가 늘어난다 (SYS-018).
+     *
+     * <p>숨김·삭제된 장소는 빠진다. 본 뒤에 가려진 장소를 목록에 남기면 눌렀을 때 404 가 난다.
+     */
+    public List<PlaceDtos.PlaceSummary> summaries(Collection<Long> placeIds, UUID viewer) {
+        if (placeIds.isEmpty()) return List.of();
+        JdbcClient.StatementSpec spec = jdbc.sql(basePlaceSelect(viewer, false)
+                        + " WHERE p.place_id IN (:ids) AND p.status='ACTIVE'")
+                .param("ids", placeIds);
+        spec = viewer == null ? spec.param("viewer", null, Types.OTHER) : spec.param("viewer", viewer);
+        return spec.query((rs, n) -> mapPlace(rs)).list();
+    }
+
     public DetailRecord detail(long placeId, String language) {
         return jdbc.sql("""
                 SELECT d.overview,d.tel,d.homepage,p.verify_radius_m,p.view_count

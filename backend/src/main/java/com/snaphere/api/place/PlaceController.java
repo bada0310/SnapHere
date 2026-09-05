@@ -16,10 +16,13 @@ import java.util.List;
 @RequestMapping("/api/v1")
 public class PlaceController {
     private final PlaceService service;
+    private final RecentPlaceService recentPlaces;
     private final CurrentUserProvider users;
 
-    public PlaceController(PlaceService service, CurrentUserProvider users) {
+    public PlaceController(PlaceService service, RecentPlaceService recentPlaces,
+                           CurrentUserProvider users) {
         this.service = service;
+        this.recentPlaces = recentPlaces;
         this.users = users;
     }
 
@@ -109,6 +112,20 @@ public class PlaceController {
                                                                  HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ok(service.report(users.require(request), placeId, body), request));
+    }
+
+    /**
+     * API-USER-011 — 최근 본 장소. (VST-006)
+     *
+     * <p>{@code /me} 는 토큰 주인만 가리킨다. 경로에 사용자 ID 를 두지 않는 이유이기도 하고,
+     * 남의 열람 기록을 보여 주면 안 되므로 {@code require} 로 막는다.
+     */
+    @GetMapping("/me/recent-places")
+    ApiResponse<CursorPage<PlaceDtos.PlaceSummary>> myRecentPlaces(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        return ok(recentPlaces.recent(users.require(request).userId(), cursor, size), request);
     }
 
     private static <T> ApiResponse<T> ok(T data, HttpServletRequest request) {

@@ -55,4 +55,12 @@ public interface PlaceRepository extends JpaRepository<PlaceEntity, Long> {
     int addPostCount(@Param("placeId") Long placeId,
                      @Param("delta") int delta,
                      @Param("now") OffsetDateTime now);
+
+    /** 방문자 수 증가. 방문이 새로 기록된 경우에만 부른다 (VST-001). */
+    @Modifying
+    @Query("update PlaceEntity p set p.visitCount = p.visitCount + :delta, p.updatedAt = :now "
+            + "where p.placeId = :placeId")
+    int addVisitCount(@Param("placeId") Long placeId,
+                      @Param("delta") int delta,
+                      @Param("now") OffsetDateTime now);
 }
