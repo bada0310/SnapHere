@@ -97,12 +97,11 @@ public class PlaceController {
         return ok(service.bookmarks(users.require(request), cursor, size), request);
     }
 
-    @GetMapping("/tags/suggestions")
-    ApiResponse<List<PlaceDtos.TagSuggestion>> tags(@RequestParam String placeId,
-                                                     @RequestParam(required = false) String query,
-                                                     HttpServletRequest request) {
-        return ok(service.tags(placeId, query), request);
-    }
+    // GET /api/v1/tags/suggestions 는 TagController 가 맡는다 (API-CMU-011).
+    // 여기에도 같은 매핑이 있어 두 컨트롤러가 부딪쳤고 애플리케이션이 뜨지 않았다
+    // (2026-09-05 로컬 기동 실패, Ambiguous mapping). 명세는 이 엔드포인트 하나가
+    // 장소 태그(PLC-021)·행사 고정 태그(EVT-017~020)·타이핑 접두어(CMU-026~028)를
+    // 모두 처리하도록 정의하는데, 이쪽 구현은 placeId 만 받아 eventId 를 다루지 못했다.
 
     @PostMapping("/places/{placeId}/reports")
     ResponseEntity<ApiResponse<PlaceDtos.ReportReceipt>> report(@PathVariable String placeId,
