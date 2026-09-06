@@ -256,17 +256,20 @@ enum은 마지막 값에 세미콜론이 붙어서 **누가 추가하든 그 줄
 | 항목 | 버전 |
 | --- | --- |
 | PostgreSQL | **Percona Distribution 17.10.2** |
-| PostGIS | **3.5.7** |
+| PostGIS | **3.6.2** |
 | JDK | **21.0.11** |
 | Gradle | **8.14** |
 
 ```bash
+docker build -t snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2 \
+  backend/docker/postgres
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  percona/percona-distribution-postgresql-with-postgis:17.10-5
+  snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2
 ```
 
-롤링 태그(`17-3.5`)를 쓰지 않는다. 받는 시점마다 내용물이 달라져 재현이 안 된다.
+공식 Percona 17.10.2 이미지는 PostGIS 3.5.7까지만 제공하므로 저장소의 Dockerfile로
+3.6.2를 빌드한다. PostGIS 소스와 Percona 기반 이미지 digest를 모두 고정해 재현성을 유지한다.
 
 **분기에 한 번 팀이 함께 최신 패치로 올린다.** 못 박아 두고 영영 안 올리면
 그 사이 고쳐진 보안·데이터 손상 수정을 그대로 안고 간다 — 오래된 마이너 버전을

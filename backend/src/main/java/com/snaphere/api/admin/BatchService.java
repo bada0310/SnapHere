@@ -8,6 +8,8 @@ import com.snaphere.api.common.web.CursorPage;
 import com.snaphere.api.config.PlaceTaskConfig;
 import com.snaphere.api.map.MapAggregationService;
 import com.snaphere.api.map.MapPeriod;
+import com.snaphere.api.ranking.RankingAggregationService;
+import com.snaphere.api.ranking.RankingPeriod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -19,7 +21,6 @@ import org.springframework.core.task.TaskExecutor;
 
 import java.sql.Types;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -31,19 +32,26 @@ public class BatchService {
     private final PlaceSyncWorker worker;
     private final TaskExecutor taskExecutor;
     private final MapAggregationService mapAggregation;
+    private final RankingAggregationService rankingAggregation;
 
     public BatchService(JdbcClient jdbc, PlaceSyncWorker worker,
                         @Qualifier(PlaceTaskConfig.PLACE_TASK_EXECUTOR) TaskExecutor taskExecutor,
-                        MapAggregationService mapAggregation) {
+                        MapAggregationService mapAggregation,
+                        RankingAggregationService rankingAggregation) {
         this.jdbc = jdbc; this.worker = worker; this.taskExecutor = taskExecutor;
         this.mapAggregation = mapAggregation;
+        this.rankingAggregation = rankingAggregation;
     }
 
     public BatchDtos.BatchRun start(String jobType, BatchDtos.StartRequest request) {
-        if (!List.of("PLACE_SYNC", "HEATMAP_RECALC").contains(jobType)) throw new ApiException(ErrorCode.COMMON_400);
+        if (!List.of("PLACE_SYNC", "HEATMAP_RECALC", "RANKING_RECALC").contains(jobType)) {
+            throw new ApiException(ErrorCode.COMMON_400);
+        }
         Integer area = request == null ? null : request.areaCode();
         Integer type = request == null ? null : request.contentTypeId();
-        if ("HEATMAP_RECALC".equals(jobType) && (area != null || type != null)) throw new ApiException(ErrorCode.COMMON_400);
+        if (!"PLACE_SYNC".equals(jobType) && (area != null || type != null)) {
+            throw new ApiException(ErrorCode.COMMON_400);
+        }
         if (area != null && !AREAS.contains(area)) throw new ApiException(ErrorCode.COMMON_400);
         if (type != null && !TYPES.contains(type)) throw new ApiException(ErrorCode.COMMON_400);
         try {
@@ -51,6 +59,7 @@ public class BatchService {
                     .param("job", jobType).query(Long.class).single();
             taskExecutor.execute(() -> {
                 if ("HEATMAP_RECALC".equals(jobType)) executeHeatmap(runId);
+                else if ("RANKING_RECALC".equals(jobType)) executeRanking(runId);
                 else execute(runId, area, type);
             });
             return get(runId);
@@ -70,6 +79,31 @@ public class BatchService {
             jdbc.sql("UPDATE batch_runs SET status='FAIL',processed_count=:count,failed_count=1,finished_at=now() WHERE run_id=:id")
                     .param("count", processed).param("id", runId).update();
             log.error("지도 수동 집계 실패. runId={}", runId, failure);
+        }
+    }
+
+    public void executeRanking(long runId) {
+        OffsetDateTime started = OffsetDateTime.now();
+        jdbc.sql("UPDATE batch_runs SET status='RUNNING',started_at=now() WHERE run_id=:id")
+                .param("id", runId).update();
+        int processed = 0;
+        try {
+            for (RankingPeriod period : RankingPeriod.values()) {
+                processed += rankingAggregation.rebuild(period);
+            }
+            jdbc.sql("""
+                    UPDATE batch_runs SET status='SUCCESS',processed_count=:count,finished_at=now()
+                    WHERE run_id=:id
+                    """).param("count", processed).param("id", runId).update();
+            log(runId, null, null, "RANKING_RECALC", "SUCCESS", processed, null, started);
+        } catch (RuntimeException failure) {
+            jdbc.sql("""
+                    UPDATE batch_runs SET status='FAIL',processed_count=:count,failed_count=1,finished_at=now()
+                    WHERE run_id=:id
+                    """).param("count", processed).param("id", runId).update();
+            log(runId, null, null, "RANKING_RECALC", "FAIL", processed,
+                    rootMessage(failure), started);
+            log.error("장소 랭킹 수동 집계 실패. runId={}", runId, failure);
         }
     }
 
@@ -135,10 +169,16 @@ public class BatchService {
     }
 
     private void log(long runId, int area, int type, String result, int count, String message, OffsetDateTime started) {
+        log(runId, area, type, "PLACE_SYNC", result, count, message, started);
+    }
+
+    private void log(long runId, Integer area, Integer type, String jobType, String result,
+                     int count, String message, OffsetDateTime started) {
         jdbc.sql("""
                 INSERT INTO sync_logs(run_id,job_type,area_code,content_type_id,result,count,message,started_at,finished_at)
-                VALUES (:run,'PLACE_SYNC',:area,:type,:result,:count,:message,:started,now())
-                """).param("run",runId).param("area",area).param("type",type).param("result",result)
+                VALUES (:run,:job,:area,:type,:result,:count,:message,:started,now())
+                """).param("run",runId).param("job",jobType)
+                .param("area",area,Types.INTEGER).param("type",type,Types.INTEGER).param("result",result)
                 .param("count",count).param("message",message).param("started",started).update();
     }
 

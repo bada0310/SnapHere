@@ -2,7 +2,7 @@
 
 > 기준: 사용자 제공 ERD 정본 · 2026-09-05
 >
-> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지)
 >
 > 구성: 28개 테이블 · 22개 enum · DBML 명시 관계 42개
 >
@@ -203,6 +203,8 @@
 | 사진 순서 | 0~3 | 일부 구현은 1~4 |
 | 등급 감사 | 별도 테이블 없음 | `tier_logs` 존재 가능 |
 | 히트맵 보조 상태 | 정본에 없음 | `heatmap_refresh_state` 존재 가능 |
+| 운영자 추천 장소 | 정본의 미결정 제안 | 애플리케이션 V19에 `places.is_curated` 추가 |
+| 장소 랭킹 집계 차원 | `(place_id, period, theme)` 단위 | 애플리케이션 V19는 전국·지역 및 전체·공식·사용자 순위를 미리 저장하도록 `scope`, `place_type` 추가 |
 
 따라서 이 문서 변경만으로 기존 Flyway 마이그레이션을 삭제하거나 재작성해서는 안 된다.
 

@@ -24,7 +24,7 @@ Spring Boot 3.5 · JDK 21.0.11 · Gradle 8.14 (Kotlin DSL) 기반 백엔드 API 
 | JDK | 21.0.11 (벤더 무관) |
 | Gradle | 8.14 |
 | PostgreSQL | Percona Distribution 17.10.2 |
-| PostGIS | 3.5.7 |
+| PostGIS | 3.6.2 (저장소 Dockerfile로 빌드) |
 
 JDK 21.0.11을 설치하고 `JAVA_HOME`을 해당 설치 경로로 지정한 뒤, 저장소에 포함된 Gradle
 8.14 Wrapper로 실행한다. `.java-version`과 빌드 검사가 다른 JDK 패치 버전의 사용을 막는다.
@@ -71,7 +71,7 @@ backend/src/main/java/com/snaphere/api/
 
 ## 데이터베이스 준비
 
-Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스키마는 Flyway가
+Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.6.2가 필요하다. 스키마는 Flyway가
 만든다 — 손으로 만들지 않는다.
 
 | 파일 | 내용 |
@@ -82,6 +82,7 @@ Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스
 | `V4__region_seed.sql` | 17개 시도 기준정보. `posts.area_code` 가 참조하므로 없으면 게시글을 만들 수 없다 |
 | `V11__place_features.sql` | 장소 상세·저장·랭킹·신고·이벤트·배치 운영 확장 |
 | `V12__map_aggregates.sql` | 기간별 히트맵 셀·지역 통계·갱신 상태 집계 |
+| `V19__place_ranking_dimensions.sql` | 운영자 추천 장소와 전국·지역·장소 유형별 랭킹 집계 차원 |
 
 `V11__place_features.sql`은 병합 직후 V8/V9의 `bookmarks`·`reports`를 중복 생성하던 오류를
 수정했다. 수정 전 V11을 이미 적용한 개발 DB는 새 코드를 올리기 전에 Flyway `repair`로
@@ -90,23 +91,28 @@ Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스
 `V2` 가 `postgis` · `pg_trgm` 확장을 만든다. 확장 생성에는 보통 슈퍼유저 권한이 필요하니
 관리형 DB(RDS 등)에서는 관리자 계정으로 한 번 만들어 두고 애플리케이션 계정에는 권한을 주지 않아도 된다.
 
-Docker 로 띄우는 것이 가장 간단하다. PostGIS 가 포함된 이미지를 쓴다.
+Docker 로 띄우는 것이 가장 간단하다. 공식 Percona 17.10.2 이미지의 PostGIS는 3.5.7이므로,
+저장소의 다단계 Dockerfile이 공식 3.6.2 소스를 검증·빌드한 커스텀 이미지를 쓴다.
 
 ```bash
+docker build -t snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2 \
+  docker/postgres
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  percona/percona-distribution-postgresql-with-postgis:17.10-5
+  snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2
 ```
 
-Percona Distribution 릴리스 `17.10.2`에 대응하는 PostGIS 포함 Docker 이미지 태그는
-`17.10-5`다.
+저장소 루트에서는 `docker compose build postgres` 후 `docker compose up -d`로 같은 이미지를
+빌드하고 실행할 수 있다. Testcontainers도 `docker/postgres/Dockerfile`을 직접 빌드한다.
 
 `spring.jpa.hibernate.ddl-auto` 는 `validate` 다. 엔티티와 마이그레이션이 어긋나면 애플리케이션이
 기동하지 않고 어느 컬럼이 다른지 알려 준다 — 스키마를 Hibernate 가 바꾸는 일은 없다.
 
-테스트는 H2 로 돌기 때문에 Flyway 를 끄고 Hibernate 가 엔티티에서 스키마를 만든다
-(`src/test/resources/application.yml`). PostGIS 문법은 H2 에서 실행되지 않는다.
-마이그레이션 자체의 검증은 위 PostgreSQL 컨테이너에 붙여서 한다.
+대부분의 단위·웹 테스트는 H2에서 실행하며 Flyway를 끄고 Hibernate가 엔티티에서 스키마를
+만든다(`src/test/resources/application.yml`). `PlaceSchemaIntegrationTests`는 예외로 위 커스텀
+이미지를 Testcontainers로 직접 빌드하고 Flyway와 `ddl-auto=validate`를 켜서 실제 PostGIS 문법,
+마이그레이션, MAP·RNK 집계를 검증한다. Docker 29에서도 건너뛰지 않도록 테스트 작업의 Docker
+API 기본값은 1.40으로 설정돼 있으며 `-Dapi.version=...`으로 재정의할 수 있다.
 
 ## 실행 전 필요한 값
 
@@ -158,6 +164,8 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 | `API-PST-003` | `POST /api/v1/posts` | 2.3 사진·캡션·태그 > 게시글 등록 | `PST-001`~`PST-004`, `PST-016`~`PST-021`, `PST-029`~`PST-031` |
 | `API-PLC-001`~`009` | `/api/v1/regions`, `/api/v1/places*` | 2.1 장소 설정 · 6.1 장소 정보 | `PLC-001`~`PLC-023` |
 | `API-MAP-001`~`004` | `/api/v1/map/*` | 지역·히트맵·사진 마커·셀 상세 | `MAP-001`~`MAP-030` 백엔드 범위 |
+| `API-RNK-001` | `GET /api/v1/rankings/places` | 전국·지역·기간·테마·장소 유형별 사전 집계 순위 | `RNK-001`~`RNK-010` |
+| `API-RNK-002` | `GET /api/v1/recommendations/places` | 거리·지역 기반 추천과 운영자 지정 장소 폴백 | `RNK-011`~`RNK-013` |
 | `API-ADM-001`~`003` | `/api/v1/admin/batches*`, `/api/v1/admin/sync-logs` | 관리자 장소 동기화 | `PLC-008`~`PLC-010` |
 | `API-ADM-005`~`010`, `013` | `/api/v1/admin/events*`, `/api/v1/admin/places*`, `/api/v1/admin/reports*` | 관리자 반경·신고 처리 | `PLC-022`, `PLC-023` |
 
@@ -173,6 +181,17 @@ MEDIA_PUBLIC_BASE_URL=https://cdn.example.com
 | `LOW` 낮음 | 촬영 좌표 없음 / 반경 밖 / 30일 경과 | 0.5 | ❌ | ❌ | ❌ |
 
 낮음도 게시와 랭킹 반영은 허용한다. 0점을 주면 EXIF 가 없는 기기 사용자가 전부 배제된다 (`PST-025`).
+
+### 장소 랭킹·추천 (`RNK-001`~`RNK-013`)
+
+`RankingJobs`가 기본 10분마다 일간·주간·월간·전체 점수와 순위를 `place_rankings`에 저장한다.
+점수는 신뢰 등급 게시글, 자기 좋아요를 뺀 좋아요, 댓글, 장소 방문·조회 카운터를 사용한다.
+전국·지역과 전체·공식·사용자 장소 순위는 집계 때 각각 계산하므로 조회 API는 점수를 다시 계산하지 않는다.
+동점은 `place_id` 오름차순으로 고정하며, 직전 집계의 순위는 `previous_rank`에 남긴다.
+
+추천은 주간 전체 랭킹에 작은 무작위 계수를 섞고, 좌표가 있으면 20km 이내만 후보로 쓴다.
+후보가 없으면 `places.is_curated=true`인 활성 장소를 `CURATED` 사유 코드로 반환한다.
+관리자는 `POST /api/v1/admin/batches/RANKING_RECALC`로 네 기간을 즉시 다시 계산할 수 있다.
 
 **인증 반경 우선순위** (`PLC-022`, `EVT-023`) — 이벤트별 값 → 그 지역 기본값 → 2,000m.
 일반 게시글은 장소에 설정된 값(관광지 500m / 사용자 장소 100m)을 쓴다.

@@ -149,9 +149,10 @@ public class PlaceRepository {
     public PlaceDtos.RankingEntry ranking(long placeId) {
         return jdbc.sql("""
                 SELECT rank_no,previous_rank,score,period,theme FROM place_rankings
-                WHERE place_id=:id ORDER BY CASE period WHEN 'WEEKLY' THEN 0 ELSE 1 END, calculated_at DESC LIMIT 1
+                WHERE place_id=:id AND scope='NATIONAL' AND place_type='ALL' AND theme='ALL'
+                ORDER BY CASE period WHEN 'WEEKLY' THEN 0 ELSE 1 END, calculated_at DESC LIMIT 1
                 """).param("id", placeId).query((rs, n) -> new PlaceDtos.RankingEntry(rs.getInt(1),
-                        (Integer) rs.getObject(2), rs.getBigDecimal(3), rs.getString(4), rs.getString(5)))
+                        (Integer) rs.getObject(2), rs.getBigDecimal(3), rs.getString(4), null))
                 .optional().orElse(null);
     }
 
@@ -163,7 +164,7 @@ public class PlaceRepository {
                        ST_Y(p.geom::geometry) lat,ST_X(p.geom::geometry) lng,p.post_count,p.visit_count,
                        pi.thumbnail_url,
                        (SELECT count(*) FROM post_images x WHERE x.post_id=po.post_id) image_count,
-                       coalesce(pi.aspect_ratio,1),po.tier,po.like_count,po.comment_count,po.created_at,
+                       coalesce(pi.aspect_ratio,1) aspect_ratio,po.tier,po.like_count,po.comment_count,po.created_at,
                        CASE WHEN CAST(:viewer AS UUID) IS NULL THEN NULL ELSE EXISTS(
                          SELECT 1 FROM bookmarks b WHERE b.user_id=:viewer AND b.target_type='POST' AND b.target_id=po.post_id) END bookmarked
                 FROM posts po JOIN users u ON u.id=po.user_id JOIN places p ON p.place_id=po.place_id

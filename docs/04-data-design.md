@@ -2,7 +2,7 @@
 
 > 상태: 사용자 제공 ERD 정본 · 2026-09-05
 >
-> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지)
 >
 > 규모: 28개 테이블 · 22개 enum · DBML에 명시한 관계 42개
 >
@@ -133,7 +133,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 - MAP-025: `heatmap_cells.sample_thumbnails` 사전 저장
 - SCH-011·VST-006: 사용자별 최근 검색어·최근 본 장소 저장소
-- RNK-013: 운영자 지정 장소 목록 또는 `places.is_curated`
+- RNK-013: 애플리케이션 V19는 `places.is_curated`로 구현했다. 사용자 제공 독립 ERD 정본 반영은 후속 개정에서 결정한다.
 - 신고 대상에 댓글·사용자를 포함할지 여부와 댓글 `BLINDED` 상태
 - BDG-013: `badges.earned_count`
 - CMU-019: 게시글 공유용 `share_slug`

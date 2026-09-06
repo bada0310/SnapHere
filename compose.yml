@@ -1,7 +1,9 @@
 services:
   postgres:
-    # Percona Distribution 17.10.2 + PostGIS 3.5.7
-    image: percona/percona-distribution-postgresql-with-postgis:17.10-5
+    # Percona Distribution 17.10.2 + source-built PostGIS 3.6.2
+    build:
+      context: ./backend/docker/postgres
+    image: snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2
     environment:
       POSTGRES_DB: snaphere
       POSTGRES_USER: snaphere

@@ -1,5 +1,5 @@
 -- SnapHere standalone schema
--- Target: Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7
+-- Target: Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.6.2 (custom image)
 -- Source: supplied data-design v1.1.3 (28 tables)
 --
 -- Run this file in an EMPTY database. This file is intentionally outside
