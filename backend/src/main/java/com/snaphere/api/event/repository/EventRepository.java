@@ -2,6 +2,7 @@ package com.snaphere.api.event.repository;
 
 import com.snaphere.api.event.entity.EventEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -116,6 +117,22 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                                  @Param("radiusM") int radiusM,
                                  @Param("today") LocalDate today,
                                  @Param("limit") int limit);
+
+    /**
+     * 참여 게시글 수 카운터를 옮긴다. (EVT-021)
+     *
+     * <p>목록·상세에서 COUNT 를 돌리지 않기 위한 비정규화다. 장소의 {@code post_count} 와 같은
+     * 방식이다.
+     *
+     * <p>등급과 무관하게 센다. 반경 밖에서 올린 글도 그 행사에 참여한 글로 목록(EVT-014)에
+     * 나오기 때문이다 — 뱃지를 못 받는 것과 참여로 세지 않는 것은 다른 이야기다 (EVT-023).
+     */
+    @Modifying
+    @Query("update EventEntity e set e.participantCount = e.participantCount + :delta, "
+            + "e.updatedAt = :now where e.eventId = :eventId")
+    int addParticipantCount(@Param("eventId") Long eventId,
+                            @Param("delta") int delta,
+                            @Param("now") OffsetDateTime now);
 
     /**
      * {@link #findRegionSummary} 결과 한 행.

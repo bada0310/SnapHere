@@ -183,4 +183,39 @@ class PostCreateValidatorTest {
                 NOW.plusHours(6), null, null);
         validator.validateTakenAt(req, NOW);
     }
+
+    // ─────────────────────────────────── 행사 자유 태그 상한 (EVT-020)
+
+    @Test
+    @DisplayName("고정 태그 2개면 자유 태그는 8개까지")
+    void 자유_태그_상한() {
+        validator.validateFreeTagCount(8, 2);
+
+        assertThatThrownBy(() -> validator.validateFreeTagCount(9, 2))
+                .satisfies(t -> assertThat(codeOf(t)).isEqualTo(ErrorCode.POST_TAG_REQUIRED));
+    }
+
+    @Test
+    @DisplayName("행사가 아니면 고정 0개 — 상한 10개 그대로")
+    void 고정_없음() {
+        validator.validateFreeTagCount(10, 0);
+
+        assertThatThrownBy(() -> validator.validateFreeTagCount(11, 0))
+                .satisfies(t -> assertThat(codeOf(t)).isEqualTo(ErrorCode.POST_TAG_REQUIRED));
+    }
+
+    @Test
+    @DisplayName("고정 태그가 상한을 다 먹으면 자유 태그는 0개")
+    void 고정이_전부() {
+        validator.validateFreeTagCount(0, 10);
+
+        assertThatThrownBy(() -> validator.validateFreeTagCount(1, 10))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    @DisplayName("자유 태그가 하나도 없어도 된다 — 고정 태그가 최소 개수를 채운다")
+    void 자유_태그_없음() {
+        validator.validateFreeTagCount(0, 2);
+    }
 }
