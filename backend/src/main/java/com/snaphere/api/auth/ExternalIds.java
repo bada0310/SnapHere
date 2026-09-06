@@ -11,6 +11,7 @@ public final class ExternalIds {
     public static String place(long id) { return encode("plc", id); }
     public static String post(long id) { return encode("pst", id); }
     public static String event(long id) { return encode("evt", id); }
+    public static String badge(long id) { return encode("bdg", id); }
     public static String report(long id) { return encode("rpt", id); }
     public static String run(long id) { return encode("run", id); }
     public static String sync(long id) { return encode("sync", id); }
