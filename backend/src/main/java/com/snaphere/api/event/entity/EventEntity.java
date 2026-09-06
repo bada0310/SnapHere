@@ -9,9 +9,12 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * 행사. (EVT-001, EVT-011, EVT-017, EVT-023)
@@ -19,9 +22,8 @@ import java.time.OffsetDateTime;
  * <p>테이블은 {@code V11__place_features.sql} 이 이미 만들어 두었다. 이 엔터티는 그 위에
  * 얹히기만 하고 스키마를 바꾸지 않는다.
  *
- * <p>{@code fixed_tags} 는 아직 매핑하지 않는다. jsonb 라 H2 로 스키마를 만드는 테스트에서
- * 형식이 어긋나고, 고정 태그를 실제로 읽는 것은 업로드 컨텍스트(EVT-016~020) 슬라이스다.
- * 매핑하지 않은 컬럼은 {@code ddl-auto=validate} 가 문제 삼지 않는다.
+ * <p>{@code fixed_tags} 는 jsonb 다. Hibernate 6 의 {@code @JdbcTypeCode(SqlTypes.JSON)} 이
+ * 문자열 배열과 jsonb 를 직접 오간다 — 별도 라이브러리를 더하지 않으려고 이 방식을 골랐다.
  */
 @Entity
 @Table(name = "events")
@@ -56,6 +58,16 @@ public class EventEntity {
 
     @Column(name = "thumbnail_url", length = 2048)
     private String thumbnailUrl;
+
+    /**
+     * 행사 참여 업로드에 자동으로 붙는 태그 이름. 지역 1개 + 행사 이름 1개다 (EVT-017).
+     *
+     * <p>표시용 이름만 담는다. 정규화와 {@code tags} 행 연결은 태그 도메인이 한다 —
+     * 여기에 tagId 를 넣으면 태그가 병합·삭제될 때 이 열이 낡는다.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "fixed_tags", nullable = false)
+    private List<String> fixedTags;
 
     @Column(name = "participant_count", nullable = false)
     private int participantCount;
@@ -115,6 +127,11 @@ public class EventEntity {
 
     public String getThumbnailUrl() {
         return thumbnailUrl;
+    }
+
+    /** @return 고정 태그 이름. 없으면 빈 목록 — null 을 흘려 호출자가 방어하게 두지 않는다 */
+    public List<String> getFixedTags() {
+        return fixedTags == null ? List.of() : fixedTags;
     }
 
     public int getParticipantCount() {
