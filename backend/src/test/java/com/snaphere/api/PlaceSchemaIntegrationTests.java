@@ -60,6 +60,11 @@ class PlaceSchemaIntegrationTests {
         assertThat(jdbc.sql("SELECT PostGIS_Lib_Version()").query(String.class).single()).isEqualTo("3.5.7");
         assertThat(jdbc.sql("SELECT to_regclass('public.heatmap_cells') IS NOT NULL").query(Boolean.class).single()).isTrue();
         assertThat(jdbc.sql("SELECT to_regclass('public.region_stats') IS NOT NULL").query(Boolean.class).single()).isTrue();
+        assertThat(jdbc.sql("SELECT to_regclass('public.account_deletion_logs') IS NOT NULL")
+                .query(Boolean.class).single()).isTrue();
+        assertThat(jdbc.sql("SELECT column_default FROM information_schema.columns "
+                        + "WHERE table_name = 'users' AND column_name = 'push_like_enabled'")
+                .query(String.class).single()).isEqualTo("true");
     }
 
     @Test

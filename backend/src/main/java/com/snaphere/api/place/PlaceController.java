@@ -16,10 +16,13 @@ import java.util.List;
 @RequestMapping("/api/v1")
 public class PlaceController {
     private final PlaceService service;
+    private final RecentPlaceService recentPlaces;
     private final CurrentUserProvider users;
 
-    public PlaceController(PlaceService service, CurrentUserProvider users) {
+    public PlaceController(PlaceService service, RecentPlaceService recentPlaces,
+                           CurrentUserProvider users) {
         this.service = service;
+        this.recentPlaces = recentPlaces;
         this.users = users;
     }
 
@@ -88,14 +91,11 @@ public class PlaceController {
         return ok(service.unbookmark(users.require(request), placeId), request);
     }
 
-    @GetMapping("/me/bookmarks")
-    ApiResponse<CursorPage<PlaceDtos.PlaceSummary>> bookmarks(@RequestParam(defaultValue = "PLACE") String type,
-                                                               @RequestParam(required = false) String cursor,
-                                                               @RequestParam(defaultValue = "20") int size,
-                                                               HttpServletRequest request) {
-        if (!"PLACE".equals(type)) throw new com.snaphere.api.common.error.ApiException(com.snaphere.api.common.error.ErrorCode.COMMON_400);
-        return ok(service.bookmarks(users.require(request), cursor, size), request);
-    }
+    // GET /api/v1/tags/suggestions 는 TagController 가 맡는다 (API-CMU-011).
+    // 여기에도 같은 매핑이 있어 두 컨트롤러가 부딪쳤고 애플리케이션이 뜨지 않았다
+    // (2026-09-05 로컬 기동 실패, Ambiguous mapping). 명세는 이 엔드포인트 하나가
+    // 장소 태그(PLC-021)·행사 고정 태그(EVT-017~020)·타이핑 접두어(CMU-026~028)를
+    // 모두 처리하도록 정의하는데, 이쪽 구현은 placeId 만 받아 eventId 를 다루지 못했다.
 
     @PostMapping("/places/{placeId}/reports")
     ResponseEntity<ApiResponse<PlaceDtos.ReportReceipt>> report(@PathVariable String placeId,
@@ -103,6 +103,20 @@ public class PlaceController {
                                                                  HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ok(service.report(users.require(request), placeId, body), request));
+    }
+
+    /**
+     * API-USER-011 — 최근 본 장소. (VST-006)
+     *
+     * <p>{@code /me} 는 토큰 주인만 가리킨다. 경로에 사용자 ID 를 두지 않는 이유이기도 하고,
+     * 남의 열람 기록을 보여 주면 안 되므로 {@code require} 로 막는다.
+     */
+    @GetMapping("/me/recent-places")
+    ApiResponse<CursorPage<PlaceDtos.PlaceSummary>> myRecentPlaces(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request) {
+        return ok(recentPlaces.recent(users.require(request).userId(), cursor, size), request);
     }
 
     private static <T> ApiResponse<T> ok(T data, HttpServletRequest request) {

@@ -27,6 +27,20 @@ public interface BookmarkRepository extends JpaRepository<BookmarkEntity, Bookma
     List<BookmarkEntity> findByIdUserIdAndIdTargetTypeOrderByCreatedAtDesc(
             UUID userId, BookmarkTargetType targetType, Pageable pageable);
 
+    @Query("""
+            select b from BookmarkEntity b where b.id.userId=:userId and b.id.targetType=:targetType
+              and (cast(:cursorCreatedAt as timestamp) is null or b.createdAt < :cursorCreatedAt
+                   or (b.createdAt = :cursorCreatedAt and b.id.targetId < :cursorTargetId))
+            order by b.createdAt desc, b.id.targetId desc
+            """)
+    List<BookmarkEntity> findPage(@Param("userId") UUID userId,
+                                  @Param("targetType") BookmarkTargetType targetType,
+                                  @Param("cursorCreatedAt") java.time.OffsetDateTime cursorCreatedAt,
+                                  @Param("cursorTargetId") Long cursorTargetId,
+                                  Pageable pageable);
+
     int deleteByIdUserIdAndIdTargetTypeAndIdTargetId(
             UUID userId, BookmarkTargetType targetType, Long targetId);
+
+    void deleteByIdUserId(UUID userId);
 }

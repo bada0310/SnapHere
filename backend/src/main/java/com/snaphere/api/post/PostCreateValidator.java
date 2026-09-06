@@ -92,6 +92,23 @@ public class PostCreateValidator {
      * <p>세는 대상은 요청에 담긴 문자열이 아니라 실제 태그 수다. {@code #서울}·{@code 서 울} 을
      * 열 번 보내도 태그는 하나다.
      */
+    /**
+     * 행사 참여 업로드의 자유 태그 상한. (EVT-020)
+     *
+     * <p>고정 태그는 서버가 붙이므로 사용자 몫은 {@code MAX_TAGS - 고정 개수} 다. 고정 2개면 8개다.
+     *
+     * <p>상한을 넘겼을 때 조용히 자르지 않고 막는 이유: 사용자가 공들여 붙인 태그가 말없이
+     * 사라지면 게시 결과가 입력과 달라진다. 사진 장수·태그 개수처럼 "내가 넣은 것"은 초과를
+     * 알려 주고 되돌려 보낸다.
+     */
+    public void validateFreeTagCount(int requestedCount, int fixedCount) {
+        int allowed = Math.max(0, MAX_TAGS - fixedCount);
+        if (requestedCount > allowed) {
+            throw new ApiException(ErrorCode.POST_TAG_REQUIRED,
+                    Map.of("max", allowed, "fixed", fixedCount, "actual", requestedCount));
+        }
+    }
+
     public void validateTagCount(int resolvedCount) {
         if (resolvedCount < MIN_TAGS || resolvedCount > MAX_TAGS) {
             throw new ApiException(ErrorCode.POST_TAG_REQUIRED,

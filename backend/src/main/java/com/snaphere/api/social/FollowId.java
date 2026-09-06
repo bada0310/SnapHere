@@ -1,0 +1,3 @@
+package com.snaphere.api.social;
+import jakarta.persistence.Embeddable; import java.io.Serializable; import java.util.UUID;
+@Embeddable public class FollowId implements Serializable { private UUID followerId; private UUID followingId; protected FollowId(){} public FollowId(UUID followerId,UUID followingId){this.followerId=followerId;this.followingId=followingId;} public UUID getFollowerId(){return followerId;} public UUID getFollowingId(){return followingId;} @Override public boolean equals(Object o){return o instanceof FollowId x&&followerId.equals(x.followerId)&&followingId.equals(x.followingId);}@Override public int hashCode(){return 31*followerId.hashCode()+followingId.hashCode();} }

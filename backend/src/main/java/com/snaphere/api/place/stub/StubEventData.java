@@ -2,6 +2,7 @@ package com.snaphere.api.place.stub;
 
 import com.snaphere.api.place.EventSnapshot;
 import com.snaphere.api.place.EventSnapshotReader;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,10 +17,12 @@ import java.util.Optional;
  * 범위가 아니어서 스키마가 아직 없다. 그래도 등급 판정은 행사 인증 반경을 먼저 보므로
  * (EVT-023, PLC-022) 판정 경로를 끊지 않기 위해 남긴다.
  *
- * <p>장소·지역과 달리 {@code snaphere.stub-data} 와 무관하게 항상 등록된다 — 대체할 JPA 구현이
- * 아직 없기 때문이다.
+ * <p>이제 {@code snaphere.stub-data=true} 일 때만 등록된다. 기본값 {@code false} 에서는
+ * {@code JpaEventSnapshotReader} 가 {@code events} 테이블을 읽는다 (EVT-002). 조건을 걸지 않으면
+ * 두 구현이 동시에 등록돼 애플리케이션이 뜨지 않는다.
  */
 @Configuration
+@ConditionalOnProperty(prefix = "snaphere", name = "stub-data", havingValue = "true")
 public class StubEventData {
 
     private static final Map<Long, EventSnapshot> EVENTS = new LinkedHashMap<>();

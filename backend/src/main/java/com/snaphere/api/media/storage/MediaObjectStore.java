@@ -17,4 +17,5 @@ public interface MediaObjectStore {
 
     /** 원본을 다른 키로 복사한다. 좌표가 남은 원본을 보관하려고 쓴다 (PST-020). */
     void copy(String sourceKey, String targetKey);
+    void delete(String objectKey);
 }

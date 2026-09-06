@@ -22,13 +22,16 @@ public class PlaceService {
     private final GoogleGeocodingClient geocoder;
     private final TourPlaceDetailClient details;
     private final ViewCounterService views;
+    private final RecentPlaceService recentPlaces;
 
     public PlaceService(PlaceRepository places, GoogleGeocodingClient geocoder,
-                        TourPlaceDetailClient details, ViewCounterService views) {
+                        TourPlaceDetailClient details, ViewCounterService views,
+                        RecentPlaceService recentPlaces) {
         this.places = places;
         this.geocoder = geocoder;
         this.details = details;
         this.views = views;
+        this.recentPlaces = recentPlaces;
     }
 
     public List<PlaceDtos.Region> regions() { return places.regions(); }
@@ -74,6 +77,8 @@ public class PlaceService {
         List<PlaceDtos.PostSummary> recent = places.posts(id, null, 12, viewer);
         long totalViews = detail.viewCount() + views.pending(id) + 1;
         views.increment(id);
+        // 최근 본 장소 (VST-006). 비회원은 남길 곳이 없어 건너뛴다.
+        recentPlaces.record(viewer, id);
         return new PlaceDtos.PlaceDetail(summary, detail.overview(), language, detail.tel(), detail.homepage(),
                 detail.verifyRadiusM(), totalViews, places.ranking(id), nearby, recent);
     }
@@ -124,11 +129,6 @@ public class PlaceService {
         int pageSize = validSize(size);
         List<PlaceDtos.PlaceSummary> rows = places.bookmarkedPlaces(actor.userId(), CursorCodec.decode(cursor), pageSize + 1);
         return page(rows, pageSize, p -> ExternalIds.parse(p.placeId(), "plc", ErrorCode.COMMON_400));
-    }
-
-    public List<PlaceDtos.TagSuggestion> tags(String placeId, String query) {
-        long id = ExternalIds.parse(placeId, "plc", ErrorCode.PLACE_NOT_FOUND);
-        return places.tagSuggestions(id, query, 20);
     }
 
     @Transactional

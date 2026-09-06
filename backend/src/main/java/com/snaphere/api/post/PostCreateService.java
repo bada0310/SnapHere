@@ -4,6 +4,8 @@ import com.snaphere.api.badge.AwardedBadge;
 import com.snaphere.api.badge.BadgeAwarder;
 import com.snaphere.api.common.error.ApiException;
 import com.snaphere.api.common.error.ErrorCode;
+import com.snaphere.api.event.EventParticipationRecorder;
+import com.snaphere.api.place.EventFixedTagReader;
 import com.snaphere.api.place.EventSnapshot;
 import com.snaphere.api.place.EventSnapshotReader;
 import com.snaphere.api.place.PlaceStatus;
@@ -41,6 +43,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.Map;
 import java.util.UUID;
@@ -65,6 +68,8 @@ public class PostCreateService {
     private final TagRepository tags;
     private final PlaceRepository places;
     private final EventSnapshotReader events;
+    private final EventFixedTagReader eventFixedTags;
+    private final EventParticipationRecorder participation;
     private final VerifyRadiusResolver radiusResolver;
     private final TierDecisionLogger decisionLogger;
     private final PostCreateValidator validator;
@@ -82,6 +87,8 @@ public class PostCreateService {
                              TagRepository tags,
                              PlaceRepository places,
                              EventSnapshotReader events,
+                             EventFixedTagReader eventFixedTags,
+                             EventParticipationRecorder participation,
                              VerifyRadiusResolver radiusResolver,
                              TierDecisionLogger decisionLogger,
                              PostCreateValidator validator,
@@ -98,6 +105,8 @@ public class PostCreateService {
         this.tags = tags;
         this.places = places;
         this.events = events;
+        this.eventFixedTags = eventFixedTags;
+        this.participation = participation;
         this.radiusResolver = radiusResolver;
         this.decisionLogger = decisionLogger;
         this.validator = validator;
@@ -123,8 +132,18 @@ public class PostCreateService {
         // 남는 것을 막는다 (PST-029 ~ PST-032).
         limitChecker.check(userId, place.getPlaceId(), images, now);
 
-        List<TagEntity> resolvedTags = tagService.resolveAll(request.tagNamesOrEmpty());
+        // 행사 고정 태그는 서버가 다시 넣는다. 클라이언트가 빼고 보내도 되살아난다 (EVT-019).
+        List<String> fixedTagNames = fixedTagNames(request.eventId());
+        validator.validateFreeTagCount(request.tagNamesOrEmpty().size(), fixedTagNames.size());
+
+        // 고정 태그를 앞에 둔다. resolveAll 이 정규화 이름으로 중복을 지우면서 순서를 지키므로,
+        // 사용자가 같은 이름을 직접 쳐도 고정 쪽이 남아 잠금이 풀리지 않는다 (EVT-018).
+        List<String> allTagNames = new ArrayList<>(fixedTagNames);
+        allTagNames.addAll(request.tagNamesOrEmpty());
+
+        List<TagEntity> resolvedTags = tagService.resolveAll(allTagNames);
         validator.validateTagCount(resolvedTags.size());
+        Set<String> lockedNames = normalizedNames(fixedTagNames);
 
         TierInput tierInput = buildTierInput(request, place, event, now);
         TierDecision decision = TierPolicy.decide(tierInput, TierThresholds.DEFAULT);
@@ -139,17 +158,22 @@ public class PostCreateService {
         Set<String> suggestedNames = tagSuggestionService.suggestedNormalizedNames(
                 place.getPlaceId(), request.eventId());
         List<PostTagEntity> savedTagLinks =
-                saveTagLinks(post.getPostId(), resolvedTags, suggestedNames);
+                saveTagLinks(post.getPostId(), resolvedTags, suggestedNames, lockedNames);
 
         decisionLogger.record(post.getPostId(), userId, place.getPlaceId(),
                 request.eventId(), tierInput, decision);
         places.addPostCount(place.getPlaceId(), 1, now);
 
+        // 행사 참여 수. 등급과 무관하게 센다 — 반경 밖 글도 참여 목록에는 나온다 (EVT-021).
+        participation.recordIfEvent(request.eventId());
+
         boolean visitRecorded = visitRecorder.recordIfEligible(
-                userId, place.getPlaceId(), decision.tier().countsForVisit(), now);
+                userId, place.getPlaceId(), post.getPostId(),
+                decision.tier().countsForVisit(), now);
+        // 반경 밖이면 등급이 떨어져 여기서 걸린다 — 게시는 이미 성공했고 뱃지만 안 나간다 (EVT-023).
         List<AwardedBadge> awarded = badgeAwarder.awardForPost(
-                userId, post.getPostId(), place.getPlaceId(), request.eventId(),
-                decision.tier().eligibleForBadge());
+                userId, post.getPostId(), place.getPlaceId(), place.getAreaCode(),
+                request.eventId(), decision.tier().eligibleForBadge());
 
         // 썸네일·EXIF 제거·해시 계산은 응답과 분리한다. 커밋 이후에 시작하므로 후처리
         // 스레드가 방금 만든 행을 볼 수 있다 (PST-019, PST-020).
@@ -165,6 +189,31 @@ public class PostCreateService {
         return places.findByPlaceIdAndStatus(id, PlaceStatus.ACTIVE)
                 .orElseThrow(() -> new ApiException(ErrorCode.PLACE_NOT_FOUND,
                         Map.of("placeId", id)));
+    }
+
+    /** 행사가 없으면 빈 목록. 숨긴 행사도 포트가 빈 목록을 준다 (EVT-018). */
+    private List<String> fixedTagNames(Long eventId) {
+        return eventId == null ? List.of() : eventFixedTags.fixedTagNames(eventId);
+    }
+
+    /**
+     * 잠금 판정에 쓸 정규화 이름.
+     *
+     * <p>정규화해서 비교하는 이유: 고정 태그가 "서울" 인데 사용자가 " 서울 " 을 쳐서 같은
+     * {@code tags} 행으로 합쳐질 수 있다. 표시 이름으로 비교하면 그 태그가 잠기지 않는다.
+     */
+    private static Set<String> normalizedNames(List<String> rawNames) {
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String raw : rawNames) {
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            String name = TagEntity.normalize(raw);
+            if (!name.isEmpty()) {
+                normalized.add(name);
+            }
+        }
+        return normalized;
     }
 
     private EventSnapshot loadEvent(Long eventId) {
@@ -211,16 +260,19 @@ public class PostCreateService {
      * 글자를 직접 타이핑한 경우를 서버가 구분할 수 없고 구분할 필요도 없기 때문이다 — 지표로 알고
      * 싶은 것은 "추천이 실제로 쓰였는가"다.
      *
-     * <p>{@code isLocked} 는 아직 항상 false 다. 행사 고정 태그는 events 테이블이 생긴 뒤
-     * EVT-018 과 함께 채운다 — 지금 true 로 두면 뗄 수 없는 태그가 근거 없이 붙는다.
+     * <p>{@code isLocked} 는 행사 고정 태그에 붙는다 (EVT-018). 앱은 이 태그의 삭제 버튼을
+     * 감추고, 서버는 등록 때마다 같은 태그를 다시 주입한다 — 두 장치가 함께 있어야 클라이언트를
+     * 고쳐도 고정 태그가 빠지지 않는다 (EVT-019).
      */
     private List<PostTagEntity> saveTagLinks(Long postId, List<TagEntity> resolved,
-                                             Set<String> suggestedNormalizedNames) {
+                                             Set<String> suggestedNormalizedNames,
+                                             Set<String> lockedNormalizedNames) {
         List<PostTagEntity> links = new ArrayList<>(resolved.size());
         List<Long> tagIds = new ArrayList<>(resolved.size());
         for (TagEntity tag : resolved) {
             boolean suggested = suggestedNormalizedNames.contains(tag.getNormalizedName());
-            links.add(PostTagEntity.of(postId, tag.getTagId(), false, suggested));
+            boolean locked = lockedNormalizedNames.contains(tag.getNormalizedName());
+            links.add(PostTagEntity.of(postId, tag.getTagId(), locked, suggested));
             tagIds.add(tag.getTagId());
         }
         List<PostTagEntity> saved = new ArrayList<>(postTags.saveAll(links));

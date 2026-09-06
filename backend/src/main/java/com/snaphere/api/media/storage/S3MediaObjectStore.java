@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 
 import java.util.Optional;
 
@@ -64,6 +65,7 @@ public class S3MediaObjectStore implements MediaObjectStore {
                 .destinationKey(targetKey)
                 .build());
     }
+    @Override public void delete(String objectKey) { client.deleteObject(DeleteObjectRequest.builder().bucket(properties.bucket()).key(objectKey).build()); }
 
     @PreDestroy
     void close() {

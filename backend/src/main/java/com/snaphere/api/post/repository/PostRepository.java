@@ -63,13 +63,115 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
                               @Param("cursorPostId") Long cursorPostId,
                               Pageable pageable);
 
+    /**
+     * 행사에 참여한 공개 게시글. 최신순. (EVT-014)
+     *
+     * <p>{@link #findFeed} 에 {@code eventId} 를 더하지 않고 메서드를 나눴다. findFeed 는
+     * 피드·태그·장소 세 곳이 쓰고 테스트도 그 시그니처에 묶여 있어, 파라미터 하나를 늘리면
+     * 이 슬라이스와 무관한 코드 다섯 곳이 함께 바뀐다. 여기 필터는 {@code eventId} 하나뿐이라
+     * 조건을 복사해도 갈라질 여지가 작다.
+     *
+     * <p>커서 비교의 {@code cast} 는 findFeed 와 같은 이유다 — PostgreSQL 은 {@code IS NULL}
+     * 에만 쓰인 시각 파라미터의 타입을 추론하지 못한다.
+     */
+    @Query("""
+            select p from PostEntity p
+             where p.status = com.snaphere.api.post.PostStatus.ACTIVE
+               and p.eventId = :eventId
+               and (cast(:cursorCreatedAt as timestamp) is null
+                    or p.createdAt < :cursorCreatedAt
+                    or (p.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+             order by p.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findEventPosts(@Param("eventId") Long eventId,
+                                    @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                    @Param("cursorPostId") Long cursorPostId,
+                                    Pageable pageable);
+
     /** 장소 상세의 게시글 그리드. (PLC-013) */
     List<PostEntity> findByPlaceIdAndStatusOrderByCreatedAtDescPostIdDesc(
             Long placeId, PostStatus status, Pageable pageable);
 
+    /**
+     * 뱃지 조건 평가에 쓰는 집계. (BDG-002 ~ BDG-004, BDG-007)
+     *
+     * <p>낮음 등급은 전부 제외한다 (PST-026). 반경 밖에서 올린 글로 뱃지를 모을 수 있으면
+     * 현장 인증이라는 전제가 무너진다.
+     *
+     * <p>세 메서드가 같은 조건을 공유해 한 곳에 모아 뒀다 — 하나만 등급 조건을 빠뜨리면
+     * 뱃지 종류에 따라 기준이 달라진다.
+     */
+    @Query("select count(p) from PostEntity p "
+            + "where p.userId = :userId and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countEligibleByUser(@Param("userId") UUID userId);
+
+    @Query("select count(p) from PostEntity p "
+            + "where p.userId = :userId and p.areaCode = :areaCode "
+            + "  and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countEligibleByUserAndArea(@Param("userId") UUID userId,
+                                    @Param("areaCode") Integer areaCode);
+
+    /**
+     * 게시글을 남긴 시도 수. 완주 뱃지(BDG-003)의 진행값이다.
+     *
+     * <p>방문 기록(visits)이 아니라 게시글로 센다. VST 도메인이 아직 이 브랜치에 없고, 방문
+     * 기록 자체가 "높음·보통 게시글을 올리면 남는" 것이라 같은 집합이다 (VST-001). visits 가
+     * develop 에 들어오면 그쪽으로 옮기는 편이 정확하다 — 같은 장소를 여러 번 올려도 방문은
+     * 하루 한 번이기 때문이다.
+     */
+    @Query("select count(distinct p.areaCode) from PostEntity p "
+            + "where p.userId = :userId and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countDistinctAreasByUser(@Param("userId") UUID userId);
+
+    /** 행사 참여 여부. 행사 뱃지(BDG-001)의 진행값이다. */
+    @Query("select count(p) from PostEntity p "
+            + "where p.userId = :userId and p.eventId = :eventId "
+            + "  and p.status = com.snaphere.api.post.PostStatus.ACTIVE "
+            + "  and p.tier <> com.snaphere.api.post.tier.TrustTier.LOW")
+    long countEligibleByUserAndEvent(@Param("userId") UUID userId,
+                                     @Param("eventId") Long eventId);
+
     /** 프로필 그리드. (USER-008) */
     List<PostEntity> findByUserIdAndStatusOrderByCreatedAtDescPostIdDesc(
             UUID userId, PostStatus status, Pageable pageable);
+
+    @Query("""
+            select p from PostEntity p where p.userId=:userId
+              and p.status=com.snaphere.api.post.PostStatus.ACTIVE
+              and (cast(:cursorCreatedAt as timestamp) is null or p.createdAt < :cursorCreatedAt
+                   or (p.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findUserPosts(@Param("userId") UUID userId,
+                                   @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                   @Param("cursorPostId") Long cursorPostId,
+                                   Pageable pageable);
+
+    @Query("""
+            select p from PostEntity p, LikeEntity l
+             where l.id.userId=:userId and l.id.targetType=com.snaphere.api.reaction.LikeTargetType.POST
+               and l.id.targetId=p.postId and p.status=com.snaphere.api.post.PostStatus.ACTIVE
+               and (cast(:cursorCreatedAt as timestamp) is null or l.createdAt < :cursorCreatedAt
+                    or (l.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+             order by l.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findLikedPosts(@Param("userId") UUID userId,
+                                    @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                    @Param("cursorPostId") Long cursorPostId,
+                                    Pageable pageable);
+
+    long countByUserIdAndStatus(UUID userId, PostStatus status);
+
+    @Modifying
+    @Query("update PostEntity p set p.status=com.snaphere.api.post.PostStatus.DELETED, p.deletedAt=:now, p.updatedAt=:now where p.userId=:userId and p.status<>com.snaphere.api.post.PostStatus.DELETED")
+    int softDeleteByUserId(@Param("userId") UUID userId, @Param("now") OffsetDateTime now);
+
+    @Modifying
+    @Query("update PostEntity p set p.userId=:anonymousUserId where p.userId=:userId")
+    int reassignAuthor(@Param("userId") UUID userId, @Param("anonymousUserId") UUID anonymousUserId);
 
     /** 하루 업로드 한도 판정. 기준일은 Asia/Seoul 자정이다 (SYS-005) — 호출자가 경계를 넘긴다. */
     long countByUserIdAndStatusAndCreatedAtGreaterThanEqual(
