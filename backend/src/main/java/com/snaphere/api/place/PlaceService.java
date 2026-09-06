@@ -126,11 +126,6 @@ public class PlaceService {
         return page(rows, pageSize, p -> ExternalIds.parse(p.placeId(), "plc", ErrorCode.COMMON_400));
     }
 
-    public List<PlaceDtos.TagSuggestion> tags(String placeId, String query) {
-        long id = ExternalIds.parse(placeId, "plc", ErrorCode.PLACE_NOT_FOUND);
-        return places.tagSuggestions(id, query, 20);
-    }
-
     @Transactional
     public PlaceDtos.ReportReceipt report(CurrentUser actor, String placeId, PlaceDtos.CreateReportRequest body) {
         long id = ExternalIds.parse(placeId, "plc", ErrorCode.PLACE_NOT_FOUND);

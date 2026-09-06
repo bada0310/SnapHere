@@ -13,7 +13,20 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.*;
 
-@Repository
+/**
+ * 장소 조회 · 집계. JdbcClient 로 직접 SQL 을 쓴다.
+ *
+ * <p><b>빈 이름을 {@code placeJdbcRepository} 로 못 박았다.</b> 같은 단순명을 가진
+ * {@code com.snaphere.api.place.repository.PlaceRepository}(JPA) 가 Spring Data 규칙에 따라
+ * {@code placeRepository} 로 등록되는데, 컴포넌트 스캔이 만드는 기본 이름도 {@code placeRepository}
+ * 라서 둘이 부딪친다. 덮어쓰기가 꺼져 있어 애플리케이션이 아예 뜨지 않았다
+ * (2026-09-05 로컬 기동 실패). 주입은 전부 타입으로 받으므로 이름을 바꿔도 쓰는 쪽은 그대로다.
+ *
+ * <p>이름을 바꾸는 쪽이 아니라 이름을 못 박는 쪽을 택한 이유: 두 클래스 모두 살아 있는 코드이고
+ * (이쪽은 PlaceService·MapService·AdminService, 저쪽은 게시글·태그·공유가 쓴다) 파일을 옮기면
+ * 병합 중인 브랜치들이 전부 충돌한다.
+ */
+@Repository("placeJdbcRepository")
 public class PlaceRepository {
     private final JdbcClient jdbc;
 
