@@ -1,15 +1,20 @@
-# DB 엔진 결정 — Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+# DB 엔진 결정 — Percona PostgreSQL 17.10.2 + PostGIS 3.6.2
 
 - 최초 결정일: 2026-09-01
 - 정확 버전 고정일: 2026-09-05
+- PostGIS 3.6.2 변경일: 2026-09-06
 - 상태: 확정
 - 관련 문서: [04-data-design.md](04-data-design.md), [12-db-schema.dbml](12-db-schema.dbml)
 
 ## 결정
 
-**Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7 하나로 통일한다.** MySQL은
-사용하지 않는다. 로컬 개발과 Testcontainers에서는 PostGIS 포함 이미지
-`percona/percona-distribution-postgresql-with-postgis:17.10-5`를 사용한다.
+**Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.6.2 하나로 통일한다.** MySQL은
+사용하지 않는다. 공식 Percona 17.10.2 배포판은 PostGIS 3.5.7까지만 제공하므로 로컬 개발과
+Testcontainers는 `backend/docker/postgres/Dockerfile`로 만드는 커스텀 이미지
+`snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2`를 사용한다.
+
+커스텀 이미지는 Percona 기반 이미지의 digest와 PostGIS 3.6.2 공식 소스 SHA-256을 고정한다.
+PostGIS는 다단계 빌드하며 컴파일러·개발 헤더는 최종 런타임 이미지에 남기지 않는다.
 
 이 변경은 DB 엔진 배포판과 패치 버전만 고정하며, 테이블·컬럼·인덱스·API 계약은 변경하지
 않는다. 따라서 명세 버전은 올리지 않는다.

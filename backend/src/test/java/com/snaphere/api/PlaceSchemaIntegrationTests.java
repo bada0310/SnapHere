@@ -13,13 +13,17 @@ import com.snaphere.api.ranking.RankingRepository;
 import com.snaphere.api.ranking.RankingScope;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.UUID;
 
 @SpringBootTest(properties = {
@@ -28,22 +32,50 @@ import java.util.UUID;
         "snaphere.jobs.view-flush-cron=-"
 })
 @Testcontainers(disabledWithoutDocker = true)
+@Transactional
 class PlaceSchemaIntegrationTests {
+    private static final int POSTGRES_PORT = 5432;
+    private static final String POSTGRES_DATABASE = "snaphere_test";
+    private static final String POSTGRES_USERNAME = "snaphere";
+    private static final String POSTGRES_PASSWORD = "snaphere";
+
     @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
-            DockerImageName.parse("percona/percona-distribution-postgresql-with-postgis:17.10-5")
-                    .asCompatibleSubstituteFor("postgres"));
+    static final GenericContainer<?> POSTGRES = new GenericContainer<>(
+            new ImageFromDockerfile(
+                    "snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2", false)
+                    .withDockerfile(customPostgisDockerfile()))
+            .withEnv("POSTGRES_DB", POSTGRES_DATABASE)
+            .withEnv("POSTGRES_USER", POSTGRES_USERNAME)
+            .withEnv("POSTGRES_PASSWORD", POSTGRES_PASSWORD)
+            .withExposedPorts(POSTGRES_PORT)
+            .waitingFor(Wait.forListeningPort());
     @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7.4-alpine"))
             .withExposedPorts(6379);
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.url", () -> "jdbc:postgresql://" + POSTGRES.getHost()
+                + ":" + POSTGRES.getMappedPort(POSTGRES_PORT) + "/" + POSTGRES_DATABASE);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+        registry.add("spring.datasource.username", () -> POSTGRES_USERNAME);
+        registry.add("spring.datasource.password", () -> POSTGRES_PASSWORD);
+        registry.add("spring.flyway.enabled", () -> "true");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+    }
+
+    private static Path customPostgisDockerfile() {
+        Path backendWorkingDirectory = Path.of("docker", "postgres", "Dockerfile")
+                .toAbsolutePath().normalize();
+        if (Files.isRegularFile(backendWorkingDirectory)) return backendWorkingDirectory;
+
+        Path repositoryWorkingDirectory = Path.of("backend", "docker", "postgres", "Dockerfile")
+                .toAbsolutePath().normalize();
+        if (Files.isRegularFile(repositoryWorkingDirectory)) return repositoryWorkingDirectory;
+
+        throw new IllegalStateException("Custom PostGIS Dockerfile not found");
     }
 
     @Autowired JdbcClient jdbc;
@@ -57,7 +89,7 @@ class PlaceSchemaIntegrationTests {
         assertThat(jdbc.sql("SELECT area_code FROM regions ORDER BY area_code").query(Integer.class).list())
                 .containsExactly(1,2,3,4,5,6,7,8,31,32,33,34,35,36,37,38,39);
         assertThat(jdbc.sql("SHOW server_version").query(String.class).single()).startsWith("17.10");
-        assertThat(jdbc.sql("SELECT PostGIS_Lib_Version()").query(String.class).single()).isEqualTo("3.5.7");
+        assertThat(jdbc.sql("SELECT PostGIS_Lib_Version()").query(String.class).single()).isEqualTo("3.6.2");
         assertThat(jdbc.sql("SELECT to_regclass('public.heatmap_cells') IS NOT NULL").query(Boolean.class).single()).isTrue();
         assertThat(jdbc.sql("SELECT to_regclass('public.region_stats') IS NOT NULL").query(Boolean.class).single()).isTrue();
         assertThat(jdbc.sql("SELECT to_regclass('public.account_deletion_logs') IS NOT NULL")

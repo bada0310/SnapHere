@@ -59,6 +59,7 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    systemProperty("api.version", System.getProperty("api.version") ?: "1.40")
 }
 
 tasks.withType<JavaCompile> {

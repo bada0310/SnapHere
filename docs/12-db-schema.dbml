@@ -1,5 +1,5 @@
 // SnapHere — 데이터 설계 정본 (2026-09-05)
-// Percona PostgreSQL 17.10.2 + PostGIS 3.5.7 · dbdiagram.io 붙여넣기용
+// Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지) · dbdiagram.io 붙여넣기용
 // 사용자 제공 ERD 기준 28개 테이블. tier_logs와 구현 보조 테이블은 정본에서 제외한다.
 // 필요한 확장: postgis, pg_trgm
 

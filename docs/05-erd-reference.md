@@ -2,7 +2,7 @@
 
 > 기준: 사용자 제공 ERD 정본 · 2026-09-05
 >
-> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.5.7
+> 대상 DB: Percona PostgreSQL 17.10.2 + PostGIS 3.6.2 (커스텀 이미지)
 >
 > 구성: 28개 테이블 · 22개 enum · DBML 명시 관계 42개
 >

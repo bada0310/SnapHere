@@ -24,7 +24,7 @@ Spring Boot 3.5 · JDK 21.0.11 · Gradle 8.14 (Kotlin DSL) 기반 백엔드 API 
 | JDK | 21.0.11 (벤더 무관) |
 | Gradle | 8.14 |
 | PostgreSQL | Percona Distribution 17.10.2 |
-| PostGIS | 3.5.7 |
+| PostGIS | 3.6.2 (저장소 Dockerfile로 빌드) |
 
 JDK 21.0.11을 설치하고 `JAVA_HOME`을 해당 설치 경로로 지정한 뒤, 저장소에 포함된 Gradle
 8.14 Wrapper로 실행한다. `.java-version`과 빌드 검사가 다른 JDK 패치 버전의 사용을 막는다.
@@ -71,7 +71,7 @@ backend/src/main/java/com/snaphere/api/
 
 ## 데이터베이스 준비
 
-Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스키마는 Flyway가
+Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.6.2가 필요하다. 스키마는 Flyway가
 만든다 — 손으로 만들지 않는다.
 
 | 파일 | 내용 |
@@ -91,23 +91,28 @@ Percona Distribution for PostgreSQL 17.10.2 + PostGIS 3.5.7이 필요하다. 스
 `V2` 가 `postgis` · `pg_trgm` 확장을 만든다. 확장 생성에는 보통 슈퍼유저 권한이 필요하니
 관리형 DB(RDS 등)에서는 관리자 계정으로 한 번 만들어 두고 애플리케이션 계정에는 권한을 주지 않아도 된다.
 
-Docker 로 띄우는 것이 가장 간단하다. PostGIS 가 포함된 이미지를 쓴다.
+Docker 로 띄우는 것이 가장 간단하다. 공식 Percona 17.10.2 이미지의 PostGIS는 3.5.7이므로,
+저장소의 다단계 Dockerfile이 공식 3.6.2 소스를 검증·빌드한 커스텀 이미지를 쓴다.
 
 ```bash
+docker build -t snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2 \
+  docker/postgres
 docker run -d --name snaphere-db -p 5432:5432 \
   -e POSTGRES_DB=snaphere -e POSTGRES_USER=snaphere -e POSTGRES_PASSWORD=snaphere \
-  percona/percona-distribution-postgresql-with-postgis:17.10-5
+  snaphere/percona-postgresql-with-postgis:17.10.2-postgis3.6.2
 ```
 
-Percona Distribution 릴리스 `17.10.2`에 대응하는 PostGIS 포함 Docker 이미지 태그는
-`17.10-5`다.
+저장소 루트에서는 `docker compose build postgres` 후 `docker compose up -d`로 같은 이미지를
+빌드하고 실행할 수 있다. Testcontainers도 `docker/postgres/Dockerfile`을 직접 빌드한다.
 
 `spring.jpa.hibernate.ddl-auto` 는 `validate` 다. 엔티티와 마이그레이션이 어긋나면 애플리케이션이
 기동하지 않고 어느 컬럼이 다른지 알려 준다 — 스키마를 Hibernate 가 바꾸는 일은 없다.
 
-테스트는 H2 로 돌기 때문에 Flyway 를 끄고 Hibernate 가 엔티티에서 스키마를 만든다
-(`src/test/resources/application.yml`). PostGIS 문법은 H2 에서 실행되지 않는다.
-마이그레이션 자체의 검증은 위 PostgreSQL 컨테이너에 붙여서 한다.
+대부분의 단위·웹 테스트는 H2에서 실행하며 Flyway를 끄고 Hibernate가 엔티티에서 스키마를
+만든다(`src/test/resources/application.yml`). `PlaceSchemaIntegrationTests`는 예외로 위 커스텀
+이미지를 Testcontainers로 직접 빌드하고 Flyway와 `ddl-auto=validate`를 켜서 실제 PostGIS 문법,
+마이그레이션, MAP·RNK 집계를 검증한다. Docker 29에서도 건너뛰지 않도록 테스트 작업의 Docker
+API 기본값은 1.40으로 설정돼 있으며 `-Dapi.version=...`으로 재정의할 수 있다.
 
 ## 실행 전 필요한 값
 
