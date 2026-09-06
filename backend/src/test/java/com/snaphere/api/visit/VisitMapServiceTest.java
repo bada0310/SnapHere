@@ -119,12 +119,13 @@ class VisitMapServiceTest {
     void badgesMapped() {
         when(visits.findVisitMapPoints(any(), any(Pageable.class))).thenReturn(List.of());
         when(badges.findCollected(any(), anyInt())).thenReturn(List.of(
-                new AwardedBadge(7L, "AREA", "badge.area.seoul", "https://cdn/x.png",
+                new AwardedBadge(7L, "AREA", "서울 탐험가", "서울에서 게시글 5개",
+                        "https://cdn/x.png",
                         OffsetDateTime.parse("2026-09-04T12:00:00+09:00"))));
 
         assertThat(service.of(USER).badges()).singleElement()
                 .satisfies(b -> {
-                    assertThat(b.nameKey()).isEqualTo("badge.area.seoul");
+                    assertThat(b.name()).isEqualTo("서울 탐험가");
                     assertThat(b.earned()).isTrue();
                 });
     }
