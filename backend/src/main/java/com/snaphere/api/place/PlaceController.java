@@ -97,13 +97,6 @@ public class PlaceController {
         return ok(service.bookmarks(users.require(request), cursor, size), request);
     }
 
-    @GetMapping("/tags/suggestions")
-    ApiResponse<List<PlaceDtos.TagSuggestion>> tags(@RequestParam String placeId,
-                                                     @RequestParam(required = false) String query,
-                                                     HttpServletRequest request) {
-        return ok(service.tags(placeId, query), request);
-    }
-
     @PostMapping("/places/{placeId}/reports")
     ResponseEntity<ApiResponse<PlaceDtos.ReportReceipt>> report(@PathVariable String placeId,
                                                                  @Valid @RequestBody PlaceDtos.CreateReportRequest body,
