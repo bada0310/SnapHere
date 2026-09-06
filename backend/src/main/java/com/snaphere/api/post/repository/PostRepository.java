@@ -138,6 +138,41 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
     List<PostEntity> findByUserIdAndStatusOrderByCreatedAtDescPostIdDesc(
             UUID userId, PostStatus status, Pageable pageable);
 
+    @Query("""
+            select p from PostEntity p where p.userId=:userId
+              and p.status=com.snaphere.api.post.PostStatus.ACTIVE
+              and (cast(:cursorCreatedAt as timestamp) is null or p.createdAt < :cursorCreatedAt
+                   or (p.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+            order by p.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findUserPosts(@Param("userId") UUID userId,
+                                   @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                   @Param("cursorPostId") Long cursorPostId,
+                                   Pageable pageable);
+
+    @Query("""
+            select p from PostEntity p, LikeEntity l
+             where l.id.userId=:userId and l.id.targetType=com.snaphere.api.reaction.LikeTargetType.POST
+               and l.id.targetId=p.postId and p.status=com.snaphere.api.post.PostStatus.ACTIVE
+               and (cast(:cursorCreatedAt as timestamp) is null or l.createdAt < :cursorCreatedAt
+                    or (l.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+             order by l.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findLikedPosts(@Param("userId") UUID userId,
+                                    @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                    @Param("cursorPostId") Long cursorPostId,
+                                    Pageable pageable);
+
+    long countByUserIdAndStatus(UUID userId, PostStatus status);
+
+    @Modifying
+    @Query("update PostEntity p set p.status=com.snaphere.api.post.PostStatus.DELETED, p.deletedAt=:now, p.updatedAt=:now where p.userId=:userId and p.status<>com.snaphere.api.post.PostStatus.DELETED")
+    int softDeleteByUserId(@Param("userId") UUID userId, @Param("now") OffsetDateTime now);
+
+    @Modifying
+    @Query("update PostEntity p set p.userId=:anonymousUserId where p.userId=:userId")
+    int reassignAuthor(@Param("userId") UUID userId, @Param("anonymousUserId") UUID anonymousUserId);
+
     /** 하루 업로드 한도 판정. 기준일은 Asia/Seoul 자정이다 (SYS-005) — 호출자가 경계를 넘긴다. */
     long countByUserIdAndStatusAndCreatedAtGreaterThanEqual(
             UUID userId, PostStatus status, OffsetDateTime from);

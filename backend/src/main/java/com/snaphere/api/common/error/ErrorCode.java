@@ -28,6 +28,8 @@ public enum ErrorCode {
     USER_NICKNAME_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "error.user.nicknameInvalid"),
     USER_WITHDRAWN(HttpStatus.CONFLICT, "error.user.withdrawn"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "error.user.notFound"),
+    USER_RECOVERY_EXPIRED(HttpStatus.CONFLICT, "error.user.recoveryExpired"),
+    USER_RESTORE_KEY_INVALID(HttpStatus.UNAUTHORIZED, "error.user.restoreKeyInvalid"),
     ADMIN_REQUIRED(HttpStatus.FORBIDDEN, "error.auth.adminRequired"),
 
     // 미디어

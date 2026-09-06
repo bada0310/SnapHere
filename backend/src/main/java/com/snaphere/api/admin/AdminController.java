@@ -13,13 +13,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
+import com.snaphere.api.user.AccountPurgeJob;
+import com.snaphere.api.auth.UserRepository;
+import com.snaphere.api.common.error.ApiException;
 
 @RestController
 @RequestMapping("/api/v1/admin")
 public class AdminController {
     private final BatchService batches;
     private final AdminService admin;
-    public AdminController(BatchService batches, AdminService admin) { this.batches=batches; this.admin=admin; }
+    private final AccountPurgeJob accountPurge; private final UserRepository users;
+    public AdminController(BatchService batches, AdminService admin, AccountPurgeJob accountPurge, UserRepository users) { this.batches=batches; this.admin=admin; this.accountPurge=accountPurge; this.users=users; }
 
     @PostMapping("/batches/{jobType}")
     ResponseEntity<ApiResponse<BatchDtos.BatchRun>> start(@PathVariable String jobType,
@@ -58,6 +63,7 @@ public class AdminController {
     @PostMapping("/places/{placeId}/moderation")
     ResponseEntity<ApiResponse<BatchDtos.BatchRun>> moderate(@PathVariable String placeId,@Valid @RequestBody BatchDtos.ModerationRequest body,HttpServletRequest request){
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ok(admin.moderate(placeId,body),request)); }
+    @DeleteMapping("/users/{userId}") ResponseEntity<Void> deleteUser(@PathVariable UUID userId){ accountPurge.purgeImmediately(users.findById(userId).orElseThrow(()->new ApiException(ErrorCode.USER_NOT_FOUND))); return ResponseEntity.noContent().build(); }
 
     private static <T> ApiResponse<T> ok(T data,HttpServletRequest request){return ApiResponse.ok(data, TraceIdFilter.currentTraceId(request));}
 }

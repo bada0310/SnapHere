@@ -14,6 +14,8 @@ import java.util.UUID;
 /** 방문 기록. (VST-001 ~ VST-005) */
 public interface VisitRepository extends JpaRepository<VisitEntity, Long> {
 
+    long countByUserId(UUID userId);
+
     /**
      * 같은 날 같은 장소가 아직 없으면 넣는다. (VST-001, VST-002)
      *
