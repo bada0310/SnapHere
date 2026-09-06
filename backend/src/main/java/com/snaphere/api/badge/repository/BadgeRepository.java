@@ -55,6 +55,21 @@ public interface BadgeRepository extends JpaRepository<BadgeEntity, Long> {
     @Query("select count(b) from BadgeEntity b where b.obtainable = true and b.type = :type")
     long countObtainableByType(@Param("type") BadgeType type);
 
+    /**
+     * 아직 못 받은 획득 가능 뱃지. 지급 판정의 후보다. (BDG-005)
+     *
+     * <p>이미 받은 뱃지를 후보에서 빼는 것은 최적화일 뿐 중복 방지가 아니다. 방지는
+     * {@code user_badges} PK 가 한다 (BDG-006) — 여기서 걸러도 동시 요청은 통과한다.
+     */
+    @Query("""
+            select b from BadgeEntity b
+             where b.obtainable = true
+               and not exists (select ub.id.badgeId from UserBadgeEntity ub
+                                where ub.id.badgeId = b.badgeId and ub.id.userId = :userId)
+             order by b.badgeId asc
+            """)
+    List<BadgeEntity> findAwardCandidates(@Param("userId") UUID userId);
+
     Optional<BadgeEntity> findByEventId(Long eventId);
 
     /** 획득자 수 카운터. BDG-013 이 이 값을 보여 준다 — 조회 때 COUNT 를 돌리지 않는다. */

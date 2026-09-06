@@ -8,14 +8,16 @@ import java.util.UUID;
 /**
  * {@code user_badges} 테이블이 생기기 전까지 쓰는 구현. 항상 빈 목록.
  *
- * <p><b>실제 구현을 추가할 때 이 파일을 지운다.</b> 조건부 등록을 걸지 않았으므로 구현이
- * 하나 더 생기면 애플리케이션이 뜨지 않고 중복 빈을 알려 준다.
+ * <p>{@code JpaBadgeAwarder} 가 {@code @Primary} 로 우선한다. 이 파일을 남긴 이유는 뱃지
+ * 스키마(V15) 없이 게시글 도메인만 띄우는 경우를 막지 않기 위해서다 — {@code @Primary} 로
+ * 갈라 두면 중복 빈 오류도 나지 않는다.
  */
 @Component
 public class NoOpBadgeAwarder implements BadgeAwarder {
 
     @Override
-    public List<AwardedBadge> awardForPost(UUID userId, long postId, long placeId, Long eventId,
+    public List<AwardedBadge> awardForPost(UUID userId, long postId, long placeId,
+                                           Integer areaCode, Long eventId,
                                            boolean eligibleForBadge) {
         return List.of();
     }

@@ -170,9 +170,10 @@ public class PostCreateService {
         boolean visitRecorded = visitRecorder.recordIfEligible(
                 userId, place.getPlaceId(), post.getPostId(),
                 decision.tier().countsForVisit(), now);
+        // 반경 밖이면 등급이 떨어져 여기서 걸린다 — 게시는 이미 성공했고 뱃지만 안 나간다 (EVT-023).
         List<AwardedBadge> awarded = badgeAwarder.awardForPost(
-                userId, post.getPostId(), place.getPlaceId(), request.eventId(),
-                decision.tier().eligibleForBadge());
+                userId, post.getPostId(), place.getPlaceId(), place.getAreaCode(),
+                request.eventId(), decision.tier().eligibleForBadge());
 
         // 썸네일·EXIF 제거·해시 계산은 응답과 분리한다. 커밋 이후에 시작하므로 후처리
         // 스레드가 방금 만든 행을 볼 수 있다 (PST-019, PST-020).
