@@ -146,7 +146,8 @@ public class PostCreateService {
         places.addPostCount(place.getPlaceId(), 1, now);
 
         boolean visitRecorded = visitRecorder.recordIfEligible(
-                userId, place.getPlaceId(), decision.tier().countsForVisit(), now);
+                userId, place.getPlaceId(), post.getPostId(),
+                decision.tier().countsForVisit(), now);
         List<AwardedBadge> awarded = badgeAwarder.awardForPost(
                 userId, post.getPostId(), place.getPlaceId(), request.eventId(),
                 decision.tier().eligibleForBadge());
