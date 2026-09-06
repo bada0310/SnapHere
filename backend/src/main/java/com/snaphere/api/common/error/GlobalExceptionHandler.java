@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -41,6 +42,14 @@ public class GlobalExceptionHandler {
         ErrorBody body = ErrorBody.withViolations(ErrorCode.COMMON_400, violations);
         return ResponseEntity.status(ErrorCode.COMMON_400.status())
                 .body(ApiResponse.fail(body, TraceIdFilter.currentTraceId(request)));
+    }
+
+    /** JSON 본문이 없거나 문법이 깨진 요청은 서버 오류가 아니라 잘못된 요청이다. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException e,
+                                                                   HttpServletRequest request) {
+        return ResponseEntity.status(ErrorCode.COMMON_400.status())
+                .body(ApiResponse.fail(ErrorBody.of(ErrorCode.COMMON_400), TraceIdFilter.currentTraceId(request)));
     }
 
     @ExceptionHandler(Exception.class)

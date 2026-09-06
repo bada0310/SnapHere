@@ -5,7 +5,6 @@ import com.snaphere.api.common.security.CurrentUserProvider;
 import com.snaphere.api.common.web.ApiResponse;
 import com.snaphere.api.common.web.CursorPage;
 import com.snaphere.api.common.web.TraceIdFilter;
-import com.snaphere.api.place.PlaceDtos;
 import com.snaphere.api.post.dto.PostSummaryResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -33,6 +32,5 @@ public class UserController {
     @GetMapping("/me/deletion-preview") public ResponseEntity<ApiResponse<UserDtos.DeletionPreview>> preview(HttpServletRequest r) { return ok(users.deletionPreview(current.require(r).userId()), r); }
     @PostMapping("/me/deletion") public ResponseEntity<ApiResponse<UserDtos.DeletionReceipt>> delete(@Valid @RequestBody UserDtos.DeleteAccountRequest body, HttpServletRequest r) { return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.ok(users.deleteAccount(current.require(r).userId(), body), TraceIdFilter.currentTraceId(r))); }
     @PatchMapping("/me/notification-preferences") public ResponseEntity<ApiResponse<UserDtos.NotificationPreferences>> preferences(@RequestBody UserDtos.NotificationPreferences body, HttpServletRequest r) { return ok(users.preferences(current.require(r).userId(), body), r); }
-    @GetMapping("/me/recent-places") public ResponseEntity<ApiResponse<CursorPage<PlaceDtos.PlaceSummary>>> recent(@RequestParam(required=false) String cursor, @RequestParam(required=false) Integer size, HttpServletRequest r) { return ok(users.recentPlaces(current.require(r).userId(), cursor, size), r); }
     private <T> ResponseEntity<ApiResponse<T>> ok(T body, HttpServletRequest r) { return ResponseEntity.ok(ApiResponse.ok(body, TraceIdFilter.currentTraceId(r))); }
 }

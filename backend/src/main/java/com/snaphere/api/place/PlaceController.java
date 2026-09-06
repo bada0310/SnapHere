@@ -91,15 +91,6 @@ public class PlaceController {
         return ok(service.unbookmark(users.require(request), placeId), request);
     }
 
-    @GetMapping("/me/bookmarks")
-    ApiResponse<CursorPage<PlaceDtos.PlaceSummary>> bookmarks(@RequestParam(defaultValue = "PLACE") String type,
-                                                               @RequestParam(required = false) String cursor,
-                                                               @RequestParam(defaultValue = "20") int size,
-                                                               HttpServletRequest request) {
-        if (!"PLACE".equals(type)) throw new com.snaphere.api.common.error.ApiException(com.snaphere.api.common.error.ErrorCode.COMMON_400);
-        return ok(service.bookmarks(users.require(request), cursor, size), request);
-    }
-
     // GET /api/v1/tags/suggestions 는 TagController 가 맡는다 (API-CMU-011).
     // 여기에도 같은 매핑이 있어 두 컨트롤러가 부딪쳤고 애플리케이션이 뜨지 않았다
     // (2026-09-05 로컬 기동 실패, Ambiguous mapping). 명세는 이 엔드포인트 하나가
