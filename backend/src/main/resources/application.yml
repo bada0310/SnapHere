@@ -45,6 +45,7 @@ snaphere:
     heatmap-realtime-delay: ${HEATMAP_REALTIME_DELAY:PT1M}
     heatmap-periodic-delay: ${HEATMAP_PERIODIC_DELAY:PT10M}
     follow-counter-reconcile-cron: ${FOLLOW_COUNTER_RECONCILE_CRON:0 10 5 * * *}
+    account-purge-cron: ${ACCOUNT_PURGE_CRON:0 0 5 * * *}
   paging:
     default-size: 20               # SYS-003
     max-size: 50

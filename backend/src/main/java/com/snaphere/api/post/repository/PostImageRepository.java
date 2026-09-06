@@ -38,4 +38,7 @@ public interface PostImageRepository extends JpaRepository<PostImageEntity, Long
     long countSameHashOwnedBy(@Param("userId") UUID userId, @Param("imageHash") String imageHash);
 
     void deleteByPostId(Long postId);
+
+    @Query("select i from PostImageEntity i, PostEntity p where i.postId=p.postId and p.userId=:userId")
+    List<PostImageEntity> findByAuthorId(@Param("userId") UUID userId);
 }

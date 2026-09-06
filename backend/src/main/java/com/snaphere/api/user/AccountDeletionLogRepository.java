@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface AccountDeletionLogRepository extends JpaRepository<AccountDeletionLog, Long> {
 
     List<AccountDeletionLog> findByUserIdOrderByDeletedAtDesc(UUID userId);
+
+    java.util.Optional<AccountDeletionLog> findFirstByUserIdOrderByDeletedAtDesc(UUID userId);
 }

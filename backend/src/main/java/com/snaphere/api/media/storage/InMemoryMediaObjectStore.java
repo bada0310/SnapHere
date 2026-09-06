@@ -45,4 +45,5 @@ public class InMemoryMediaObjectStore implements MediaObjectStore {
             objects.put(targetKey, content);
         }
     }
+    @Override public void delete(String objectKey) { objects.remove(objectKey); }
 }
