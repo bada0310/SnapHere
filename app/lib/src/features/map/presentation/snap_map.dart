@@ -14,6 +14,8 @@ class SnapMap extends ConsumerWidget {
     this.padding = EdgeInsets.zero,
     this.myLocationEnabled = false,
     this.initialCamera = koreaCamera,
+    this.onCameraMove,
+    this.onCameraIdle,
     super.key,
   });
   final Set<Marker> markers;
@@ -22,6 +24,12 @@ class SnapMap extends ConsumerWidget {
   final EdgeInsets padding;
   final bool myLocationEnabled;
   final CameraPosition initialCamera;
+
+  /// 카메라가 움직이는 동안 줌을 추적할 때 쓴다.
+  final ValueChanged<CameraPosition>? onCameraMove;
+
+  /// 카메라가 멈췄을 때만 서버를 부른다 — 이동 중 호출은 낭비다.
+  final VoidCallback? onCameraIdle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => ref
@@ -39,6 +47,8 @@ class SnapMap extends ConsumerWidget {
                 markers: markers,
                 onMapCreated: onCreated,
                 onTap: onTap,
+                onCameraMove: onCameraMove,
+                onCameraIdle: onCameraIdle,
                 padding: padding,
                 myLocationEnabled: myLocationEnabled,
                 myLocationButtonEnabled: false,

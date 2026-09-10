@@ -26,6 +26,9 @@ abstract interface class CommunityRepository {
     required String keyword,
     required CommunitySearchFilter filter,
   });
+
+  /// 태그를 눌렀을 때의 게시글 목록 (API-CMU-013).
+  Future<List<CommunityPost>> fetchTagPosts(String tagId);
 }
 
 /// 커뮤니티 요청이 실패했을 때 화면에 보여줄 메시지를 담는다.

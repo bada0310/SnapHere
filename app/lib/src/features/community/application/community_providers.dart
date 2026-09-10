@@ -118,3 +118,8 @@ class CommunityRecentKeywordActions {
     _ref.invalidate(communitySearchSuggestionsProvider);
   }
 }
+
+/// 태그 게시글 (API-CMU-013).
+final tagPostsProvider = FutureProvider.family<List<CommunityPost>, String>(
+  (ref, tagId) => ref.watch(communityRepositoryProvider).fetchTagPosts(tagId),
+);

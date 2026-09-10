@@ -60,6 +60,23 @@ class ApiEventRepository implements EventRepository {
         ),
       );
 
+  @override
+  Future<List<EventSummary>> fetchNearbyEvents({
+    required double lat,
+    required double lng,
+    int? radiusM,
+  }) async {
+    final data = await _get(
+      '/events/nearby',
+      query: {
+        'lat': '$lat',
+        'lng': '$lng',
+        if (radiusM != null) 'radiusM': '$radiusM',
+      },
+    );
+    return _list(data).map(EventSummary.fromJson).toList(growable: false);
+  }
+
   Future<Object?> _get(
     String path, {
     Map<String, String> query = const {},

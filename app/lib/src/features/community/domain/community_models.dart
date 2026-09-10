@@ -124,14 +124,118 @@ class CommunityFeed {
 /// 검색 결과. `03_커뮤니티_검색결과`는 "검색 결과 24건"처럼 총 건수를 보여준다.
 @immutable
 class CommunitySearchResult {
-  const CommunitySearchResult({required this.posts, required this.totalCount});
+  const CommunitySearchResult({
+    required this.posts,
+    required this.totalCount,
+    this.places = const [],
+    this.users = const [],
+    this.tags = const [],
+    this.matchedRegion,
+  });
 
-  const CommunitySearchResult.empty() : posts = const [], totalCount = 0;
+  const CommunitySearchResult.empty()
+    : posts = const [],
+      totalCount = 0,
+      places = const [],
+      users = const [],
+      tags = const [],
+      matchedRegion = null;
 
   final List<CommunityPost> posts;
   final int totalCount;
 
-  bool get isEmpty => posts.isEmpty;
+  /// 통합 검색은 타입별 상위를 함께 준다 (SCH-003).
+  final List<SearchedPlace> places;
+  final List<SearchedUser> users;
+  final List<SearchedTag> tags;
+
+  /// 검색어가 지역명이면 서버가 해당 시도를 알려준다. 지역 필터로 전환한다 (SCH-008).
+  final SearchedRegion? matchedRegion;
+
+  bool get isEmpty =>
+      posts.isEmpty && places.isEmpty && users.isEmpty && tags.isEmpty;
+}
+
+@immutable
+class SearchedPlace {
+  const SearchedPlace({
+    required this.placeId,
+    required this.title,
+    this.addr1,
+    this.imageUrl,
+    this.postCount = 0,
+  });
+
+  factory SearchedPlace.fromJson(Map<String, Object?> json) => SearchedPlace(
+    placeId: json['placeId']! as String,
+    title: json['title'] as String? ?? '장소',
+    addr1: json['addr1'] as String?,
+    imageUrl: json['imageUrl'] as String?,
+    postCount: (json['postCount'] as num?)?.toInt() ?? 0,
+  );
+
+  final String placeId;
+  final String title;
+  final String? addr1;
+  final String? imageUrl;
+  final int postCount;
+}
+
+@immutable
+class SearchedUser {
+  const SearchedUser({
+    required this.userId,
+    required this.nickname,
+    this.profileImageUrl,
+    this.bio,
+    this.isFollowing,
+  });
+
+  factory SearchedUser.fromJson(Map<String, Object?> json) => SearchedUser(
+    userId: json['userId']! as String,
+    nickname: json['nickname'] as String? ?? '여행자',
+    profileImageUrl: json['profileImageUrl'] as String?,
+    bio: json['bio'] as String?,
+    isFollowing: json['isFollowing'] as bool?,
+  );
+
+  final String userId;
+  final String nickname;
+  final String? profileImageUrl;
+  final String? bio;
+  final bool? isFollowing;
+}
+
+@immutable
+class SearchedTag {
+  const SearchedTag({
+    required this.tagId,
+    required this.name,
+    this.usageCount = 0,
+  });
+
+  factory SearchedTag.fromJson(Map<String, Object?> json) => SearchedTag(
+    tagId: json['tagId']! as String,
+    name: json['name'] as String? ?? '',
+    usageCount: (json['usageCount'] as num?)?.toInt() ?? 0,
+  );
+
+  final String tagId;
+  final String name;
+  final int usageCount;
+}
+
+@immutable
+class SearchedRegion {
+  const SearchedRegion({required this.areaCode, required this.name});
+
+  factory SearchedRegion.fromJson(Map<String, Object?> json) => SearchedRegion(
+    areaCode: (json['areaCode'] as num?)?.toInt() ?? 0,
+    name: json['name'] as String? ?? '지역',
+  );
+
+  final int areaCode;
+  final String name;
 }
 
 /// `03_커뮤니티_검색_포커스`의 최근/추천 검색어.
@@ -140,11 +244,15 @@ class CommunitySearchSuggestions {
   const CommunitySearchSuggestions({
     required this.recent,
     required this.recommended,
+    this.popularTags = const [],
   });
 
   /// 삭제 가능한 칩.
   final List<String> recent;
 
-  /// 삭제할 수 없는 제안 칩.
+  /// 삭제할 수 없는 제안 칩. 최근 7일 검색 로그 집계다 (API-SCH-002).
   final List<String> recommended;
+
+  /// 인기 해시태그. 검색어와 달리 게시글에 실제로 붙은 태그다 (API-CMU-012).
+  final List<SearchedTag> popularTags;
 }

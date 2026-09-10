@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:snap_here/src/core/ui/relative_time.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
-import 'package:snap_here/src/features/community/presentation/widgets/community_post_card.dart';
 import 'package:snap_here/src/features/explore/domain/explore_models.dart';
 import 'package:snap_here/src/features/home/application/home_map_providers.dart';
 

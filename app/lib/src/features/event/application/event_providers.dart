@@ -63,3 +63,11 @@ final eventUploadContextProvider =
       (ref, eventId) =>
           ref.watch(eventRepositoryProvider).fetchUploadContext(eventId),
     );
+
+/// 주변 이벤트 (API-EVT-002). 좌표가 있어야 하므로 화면이 위치를 넘겨준다.
+final nearbyEventsProvider =
+    FutureProvider.family<List<EventSummary>, ({double lat, double lng})>(
+      (ref, at) => ref
+          .watch(eventRepositoryProvider)
+          .fetchNearbyEvents(lat: at.lat, lng: at.lng),
+    );

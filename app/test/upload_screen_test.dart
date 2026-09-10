@@ -74,6 +74,23 @@ class _StubUploadRepository implements UploadRepository {
       badgeDescription: '테스트 뱃지를 획득했어요!',
     );
   }
+
+  @override
+  Future<List<String>> suggestTags({
+    required String placeId,
+    String? eventId,
+    String? query,
+  }) async => const ['전주한옥마을'];
+
+  @override
+  Future<TierPreview?> previewTier({
+    required String placeId,
+    String? eventId,
+    required bool fromCamera,
+    DateTime? takenAt,
+    double? lat,
+    double? lng,
+  }) async => null;
 }
 
 Widget _wrap(UploadRepository repository) {
@@ -107,6 +124,50 @@ Future<void> _goToForm(WidgetTester tester) async {
 }
 
 void main() {
+  test('사진과 자유 태그 선택 규칙을 한도 안에서 일관되게 적용한다', () async {
+    final container = ProviderContainer(
+      overrides: [
+        uploadRepositoryProvider.overrideWithValue(_StubUploadRepository()),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(uploadControllerProvider.future);
+    final controller = container.read(uploadControllerProvider.notifier);
+
+    for (var index = 2; index <= UploadLimits.photoCount; index++) {
+      expect(
+        controller.addCapturedPhoto(UploadPhoto(id: 'captured-$index')),
+        isTrue,
+      );
+    }
+    expect(
+      controller.addCapturedPhoto(const UploadPhoto(id: 'over-limit')),
+      isFalse,
+    );
+
+    controller.applyEventContext(
+      const UploadEventContext(
+        eventId: 'event-1',
+        eventTitle: '서울 빛초롱 축제',
+        place: _StubUploadRepository.place,
+        fixedTags: ['고정태그'],
+        verifyRadiusM: 2000,
+      ),
+    );
+    controller.addUserTag('#고정태그');
+    for (var index = 0; index < UploadLimits.userTagCount; index++) {
+      controller.addUserTag('태그$index');
+    }
+    controller.addUserTag('태그0');
+    controller.addUserTag('초과태그');
+
+    final state = container.read(uploadControllerProvider).requireValue;
+    expect(state.selectedPhotoIds, hasLength(UploadLimits.photoCount));
+    expect(state.userTags, hasLength(UploadLimits.userTagCount));
+    expect(state.userTags, isNot(contains('고정태그')));
+    expect(state.userTags, isNot(contains('초과태그')));
+  });
+
   test('이벤트 컨텍스트와 고정·자유 태그가 게시 요청에 보존된다', () async {
     final repository = _StubUploadRepository();
     final container = ProviderContainer(

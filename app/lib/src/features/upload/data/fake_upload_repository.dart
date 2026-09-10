@@ -93,4 +93,26 @@ class FakeUploadRepository implements UploadRepository {
       badgeDescription: '2026 전주 한옥마을 봄축제 뱃지를 획득했어요!',
     );
   }
+
+  @override
+  Future<List<String>> suggestTags({
+    required String placeId,
+    String? eventId,
+    String? query,
+  }) async => const ['전주한옥마을', '봄나들이', '한복'];
+
+  @override
+  Future<TierPreview?> previewTier({
+    required String placeId,
+    String? eventId,
+    required bool fromCamera,
+    DateTime? takenAt,
+    double? lat,
+    double? lng,
+  }) async => const TierPreview(
+    tier: 'HIGH',
+    distanceM: 24,
+    verifyRadiusM: 300,
+    withinRadius: true,
+  );
 }

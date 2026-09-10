@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:snap_here/src/core/ui/relative_time.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 
@@ -274,14 +275,4 @@ class _Footer extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Figma가 `2시간 전`, `3시간 전`처럼 상대 시각을 쓴다.
-String formatRelativeTime(DateTime createdAt, {DateTime? now}) {
-  final elapsed = (now ?? DateTime.now()).difference(createdAt);
-  if (elapsed.inMinutes < 1) return '방금 전';
-  if (elapsed.inHours < 1) return '${elapsed.inMinutes}분 전';
-  if (elapsed.inDays < 1) return '${elapsed.inHours}시간 전';
-  if (elapsed.inDays < 7) return '${elapsed.inDays}일 전';
-  return '${createdAt.year}.${createdAt.month}.${createdAt.day}';
 }

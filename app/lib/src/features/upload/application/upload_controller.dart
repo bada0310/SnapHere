@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snap_here/src/features/upload/data/device_upload_repository.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
+import 'package:snap_here/src/features/upload/data/device_upload_repository.dart';
 import 'package:snap_here/src/features/upload/data/fake_upload_repository.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 import 'package:snap_here/src/features/upload/domain/upload_repository.dart';
@@ -21,6 +21,11 @@ final uploadRepositoryProvider = Provider<UploadRepository>((ref) {
 enum UploadStep { gallery, review, form, complete }
 
 enum UploadGalleryTab { recent, drafts }
+
+abstract final class UploadLimits {
+  static const photoCount = 4;
+  static const userTagCount = 8;
+}
 
 @immutable
 class UploadState {
@@ -166,9 +171,8 @@ class UploadController extends AsyncNotifier<UploadState> {
 
   bool addCapturedPhoto(UploadPhoto photo) {
     final current = state.requireValue;
-    if (current.selectedPhotoIds.length >= 4) return false;
-    final selected = [...current.selectedPhotoIds];
-    selected.add(photo.id);
+    if (_hasReachedPhotoLimit(current)) return false;
+    final selected = [...current.selectedPhotoIds, photo.id];
     state = AsyncData(
       current.copyWith(
         recentPhotos: [photo, ...current.recentPhotos],
@@ -187,7 +191,7 @@ class UploadController extends AsyncNotifier<UploadState> {
       if (selected.length == 1) return;
       selected.remove(id);
     } else {
-      if (selected.length >= 4) return;
+      if (_hasReachedPhotoLimit(current)) return;
       selected.add(id);
     }
     state = AsyncData(
@@ -225,7 +229,7 @@ class UploadController extends AsyncNotifier<UploadState> {
     final current = state.requireValue;
     final primary = current.primaryPhoto;
     if (primary == null) return;
-    state = AsyncData(
+    _setData(
       current.copyWith(
         step: UploadStep.form,
         title: current.title.isEmpty ? primary.suggestedTitle ?? '' : null,
@@ -235,12 +239,15 @@ class UploadController extends AsyncNotifier<UploadState> {
       ),
     );
     if (current.eventContext != null) return;
+    await _matchPlace(primary);
+  }
+
+  Future<void> _matchPlace(UploadPhoto primary) async {
     try {
       final places = await _repository.matchPlaces(primary);
       if (!ref.mounted) return;
-      final formState = state.requireValue;
-      state = AsyncData(
-        formState.copyWith(
+      _setData(
+        state.requireValue.copyWith(
           placeMatches: places,
           selectedPlace: places.firstOrNull,
           clearSelectedPlace: places.isEmpty,
@@ -250,9 +257,8 @@ class UploadController extends AsyncNotifier<UploadState> {
       );
     } catch (error) {
       if (!ref.mounted) return;
-      final formState = state.requireValue;
-      state = AsyncData(
-        formState.copyWith(
+      _setData(
+        state.requireValue.copyWith(
           placeMatches: const [],
           clearSelectedPlace: true,
           isMatchingLocation: false,
@@ -296,12 +302,7 @@ class UploadController extends AsyncNotifier<UploadState> {
   void addUserTag(String value) {
     final current = state.requireValue;
     final normalized = value.trim().replaceFirst(RegExp(r'^#'), '');
-    if (normalized.isEmpty ||
-        current.userTags.length >= 8 ||
-        current.userTags.contains(normalized) ||
-        current.eventContext?.fixedTags.contains(normalized) == true) {
-      return;
-    }
+    if (!_canAddUserTag(current, normalized)) return;
     state = AsyncData(
       current.copyWith(userTags: [...current.userTags, normalized]),
     );
@@ -321,30 +322,19 @@ class UploadController extends AsyncNotifier<UploadState> {
 
   Future<void> submit() async {
     final current = state.requireValue;
-    if (current.title.trim().isEmpty || current.selectedPlace == null) {
-      state = AsyncData(current.copyWith(showValidation: true));
+    if (!_hasValidForm(current)) {
+      _setData(current.copyWith(showValidation: true));
       return;
     }
     final primary = current.primaryPhoto;
     if (primary == null) return;
-    state = AsyncData(
-      current.copyWith(isSubmitting: true, clearSubmitMessage: true),
-    );
+    _setData(current.copyWith(isSubmitting: true, clearSubmitMessage: true));
     try {
       final result = await _repository.createPost(
-        UploadDraft(
-          photos: current.selectedPhotos,
-          primaryPhoto: primary,
-          title: current.title.trim(),
-          description: current.description.trim(),
-          place: current.selectedPlace!,
-          eventId: current.eventContext?.eventId,
-          fixedTags: current.eventContext?.fixedTags ?? const [],
-          userTags: current.userTags,
-        ),
+        _createDraft(current, primary),
       );
       if (!ref.mounted) return;
-      state = AsyncData(
+      _setData(
         current.copyWith(
           step: UploadStep.complete,
           isSubmitting: false,
@@ -354,7 +344,7 @@ class UploadController extends AsyncNotifier<UploadState> {
       );
     } catch (_) {
       if (!ref.mounted) return;
-      state = AsyncData(
+      _setData(
         state.requireValue.copyWith(
           isSubmitting: false,
           submitMessage: '게시물을 등록하지 못했어요. 잠시 후 다시 시도해 주세요.',
@@ -362,4 +352,30 @@ class UploadController extends AsyncNotifier<UploadState> {
       );
     }
   }
+
+  bool _hasReachedPhotoLimit(UploadState current) =>
+      current.selectedPhotoIds.length >= UploadLimits.photoCount;
+
+  bool _canAddUserTag(UploadState current, String tag) =>
+      tag.isNotEmpty &&
+      current.userTags.length < UploadLimits.userTagCount &&
+      !current.userTags.contains(tag) &&
+      current.eventContext?.fixedTags.contains(tag) != true;
+
+  bool _hasValidForm(UploadState current) =>
+      current.title.trim().isNotEmpty && current.selectedPlace != null;
+
+  UploadDraft _createDraft(UploadState current, UploadPhoto primary) =>
+      UploadDraft(
+        photos: current.selectedPhotos,
+        primaryPhoto: primary,
+        title: current.title.trim(),
+        description: current.description.trim(),
+        place: current.selectedPlace!,
+        eventId: current.eventContext?.eventId,
+        fixedTags: current.eventContext?.fixedTags ?? const [],
+        userTags: current.userTags,
+      );
+
+  void _setData(UploadState value) => state = AsyncData(value);
 }

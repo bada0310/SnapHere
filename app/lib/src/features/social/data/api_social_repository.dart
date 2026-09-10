@@ -85,4 +85,16 @@ class ApiSocialRepository {
       postCount: postCount,
     );
   }
+
+  /// 팔로잉이 없을 때 보여줄 추천 사용자 (API-SOC-005, 결정 8번).
+  Future<List<SocialUser>> fetchRecommendations() async {
+    final items = jsonMapList(
+      await _api.get(
+        '/users/recommendations',
+        query: const {'limit': '10'},
+        accessToken: accessToken,
+      ),
+    );
+    return Future.wait(items.map(_user));
+  }
 }

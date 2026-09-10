@@ -6,6 +6,7 @@ import 'package:snap_here/src/features/community/application/community_providers
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/community/presentation/widgets/community_empty_state.dart';
 import 'package:snap_here/src/features/community/presentation/widgets/community_post_card.dart';
+import 'package:snap_here/src/features/community/presentation/widgets/search_sections.dart';
 
 /// Figma `03_커뮤니티_검색_포커스` · `03_커뮤니티_검색결과` · `03_커뮤니티_검색_없음`.
 ///
@@ -204,6 +205,12 @@ class _SuggestionsView extends ConsumerWidget {
                 ),
             ],
           ),
+          if (data.popularTags.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xl),
+            Text('인기 태그', style: textTheme.labelLarge),
+            const SizedBox(height: AppSpacing.md),
+            SearchTagWrap(tags: data.popularTags),
+          ],
         ],
       ),
     );
@@ -309,23 +316,50 @@ class _ResultsView extends ConsumerWidget {
               child: _ResultCount(count: data.totalCount),
             ),
             Expanded(
-              child: ListView.separated(
+              child: ListView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
                   0,
                   AppSpacing.lg,
                   AppSpacing.xxl,
                 ),
-                itemCount: data.posts.length,
-                separatorBuilder: (_, _) =>
-                    const SizedBox(height: AppSpacing.md),
-                itemBuilder: (context, index) {
-                  final post = data.posts[index];
-                  return CommunityPostCard(
-                    post: post,
-                    onTap: () => context.push('/photos/${post.postId}'),
-                  );
-                },
+                children: [
+                  if (data.matchedRegion != null)
+                    MatchedRegionCard(region: data.matchedRegion!),
+                  if (data.places.isNotEmpty)
+                    SearchSection(
+                      title: '장소',
+                      children: [
+                        for (final place in data.places)
+                          SearchPlaceRow(place: place),
+                      ],
+                    ),
+                  if (data.users.isNotEmpty)
+                    SearchSection(
+                      title: '사용자',
+                      children: [
+                        for (final user in data.users)
+                          SearchUserRow(user: user),
+                      ],
+                    ),
+                  if (data.tags.isNotEmpty)
+                    SearchSection(
+                      title: '태그',
+                      children: [SearchTagWrap(tags: data.tags)],
+                    ),
+                  if (data.posts.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    Text('사진', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final post in data.posts) ...[
+                      CommunityPostCard(
+                        post: post,
+                        onTap: () => context.push('/photos/${post.postId}'),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
+                  ],
+                ],
               ),
             ),
           ],

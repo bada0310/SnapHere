@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/router/app_shell.dart';
 import 'package:snap_here/src/app/router/login_navigation.dart';
 import 'package:snap_here/src/core/ui/feature_placeholder.dart';
+import 'package:snap_here/src/features/activity/presentation/my_activity_screen.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_models.dart';
 import 'package:snap_here/src/features/auth/presentation/legal_document_screen.dart';
@@ -14,12 +15,19 @@ import 'package:snap_here/src/features/auth/presentation/profile_setup_screen.da
 import 'package:snap_here/src/features/badges/presentation/badge_collection_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_screen.dart';
 import 'package:snap_here/src/features/community/presentation/community_search_screen.dart';
+import 'package:snap_here/src/features/community/presentation/tag_posts_screen.dart';
 import 'package:snap_here/src/features/event/presentation/event_detail_screen.dart';
 import 'package:snap_here/src/features/event/presentation/event_screen.dart';
 import 'package:snap_here/src/features/home/presentation/home_screen.dart';
 import 'package:snap_here/src/features/map/presentation/map_screen.dart';
+import 'package:snap_here/src/features/notification/presentation/notification_screen.dart';
+import 'package:snap_here/src/features/place/presentation/place_detail_screen.dart';
+import 'package:snap_here/src/features/post/presentation/comments_screen.dart';
+import 'package:snap_here/src/features/post/presentation/post_detail_screen.dart';
+import 'package:snap_here/src/features/region/presentation/region_screen.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
 import 'package:snap_here/src/features/rankings/presentation/rankings_screen.dart';
+import 'package:snap_here/src/features/settings/presentation/settings_screen.dart';
 import 'package:snap_here/src/features/social/data/api_social_repository.dart';
 import 'package:snap_here/src/features/social/presentation/connections_screen.dart';
 import 'package:snap_here/src/features/upload/presentation/upload_screen.dart';
@@ -53,7 +61,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       if (session.isGuest) {
         if (path == '/onboarding' || path == '/profile-setup') return '/home';
-        const guestProtected = {'/upload', '/notifications', '/profile'};
+        const guestProtected = {
+          '/upload',
+          '/notifications',
+          '/profile',
+          '/settings',
+          '/me/activity',
+        };
         if (guestProtected.contains(path) || path.startsWith('/profile/')) {
           return loginPromptLocation(state.uri.toString());
         }
@@ -186,45 +200,52 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // 하단 탭 4번째는 Wireframe_v3 기준 이벤트로 확정했고 랭킹 화면은
       // 기존 딥 링크 호환을 위해 최상위 라우트로 유지한다.
       GoRoute(path: '/rankings', builder: (_, _) => const RankingsScreen()),
+      // 통합 검색은 화면이 하나다. 커뮤니티 탭 안팎 어디서 들어와도 같은 화면을 쓴다
+      // (API-SCH-001, SCH-009).
       GoRoute(
         path: '/search',
-        builder: (_, _) => const FeaturePlaceholder(
-          title: '관광지 검색',
-          description: 'TourAPI 키워드 검색과 추천 검색어를 연결할 화면입니다.',
-          icon: Icons.search,
+        builder: (_, _) => const CommunitySearchScreen(),
+      ),
+      GoRoute(
+        path: '/tags/:tagId',
+        builder: (_, state) => TagPostsScreen(
+          tagId: state.pathParameters['tagId']!,
+          tagName: state.uri.queryParameters['name'],
         ),
       ),
       GoRoute(
         path: '/notifications',
-        builder: (_, _) => const FeaturePlaceholder(
-          title: '알림',
-          description: '추천, 댓글, 랭킹 알림에서 관련 콘텐츠로 이동합니다.',
-          icon: Icons.notifications_none,
+        builder: (_, _) => const NotificationScreen(),
+      ),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/me/activity',
+        builder: (_, state) => MyActivityScreen(
+          initialTab: ActivityTab.fromName(state.uri.queryParameters['tab']),
         ),
       ),
       GoRoute(
         path: '/regions/:regionId',
-        builder: (_, state) => FeaturePlaceholder(
-          title: '${state.pathParameters['regionId']} 커뮤니티',
-          description: '17개 시도별 사진 피드와 추천 관광지를 제공합니다.',
-          icon: Icons.groups_outlined,
+        builder: (_, state) => RegionScreen(
+          areaCode: int.tryParse(state.pathParameters['regionId'] ?? '') ?? 0,
         ),
       ),
       GoRoute(
         path: '/photos/:photoId',
-        builder: (_, _) => const FeaturePlaceholder(
-          title: '사진 상세',
-          description: '사진 추천, 댓글, 저장, 태그와 연결 관광지를 보여줍니다.',
-          icon: Icons.photo_outlined,
-        ),
+        builder: (_, state) =>
+            PostDetailScreen(postId: state.pathParameters['photoId']!),
+        routes: [
+          GoRoute(
+            path: 'comments',
+            builder: (_, state) =>
+                CommentsScreen(postId: state.pathParameters['photoId']!),
+          ),
+        ],
       ),
       GoRoute(
         path: '/places/:placeId',
-        builder: (_, _) => const FeaturePlaceholder(
-          title: '관광지 상세',
-          description: '공식 관광정보, 이용자 사진, 촬영지 메타데이터를 결합합니다.',
-          icon: Icons.place_outlined,
-        ),
+        builder: (_, state) =>
+            PlaceDetailScreen(placeId: state.pathParameters['placeId']!),
       ),
       GoRoute(
         path: '/k-culture',

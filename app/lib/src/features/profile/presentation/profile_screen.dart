@@ -9,7 +9,6 @@ import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/profile/application/profile_providers.dart';
 import 'package:snap_here/src/features/profile/domain/profile_models.dart';
-import 'package:snap_here/src/features/profile/presentation/profile_settings_sheet.dart';
 import 'package:snap_here/src/features/social/presentation/follow_button.dart';
 
 /// Figma 92:1932 / 92:2173 / 92:2340.
@@ -48,12 +47,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   icon: const DesignIcon('bell', size: 20),
                 ),
                 IconButton(
+                  tooltip: '내 활동',
+                  onPressed: () => context.push('/me/activity'),
+                  icon: const Icon(Icons.bookmark_border, size: 20),
+                ),
+                IconButton(
                   tooltip: '설정',
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    showDragHandle: true,
-                    builder: (_) => const ProfileSettingsSheet(),
-                  ),
+                  onPressed: () => context.push('/settings'),
                   icon: const DesignIcon('settings', size: 20),
                 ),
               ]

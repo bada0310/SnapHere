@@ -46,3 +46,8 @@ class FollowController extends Notifier<Map<String, FollowStatus>> {
     }
   }
 }
+
+/// 팔로잉 피드가 비었을 때 노출할 추천 사용자 (API-SOC-005).
+final recommendedUsersProvider = FutureProvider<List<SocialUser>>(
+  (ref) => ref.watch(socialRepositoryProvider).fetchRecommendations(),
+);

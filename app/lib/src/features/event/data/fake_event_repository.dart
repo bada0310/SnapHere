@@ -168,4 +168,11 @@ class FakeEventRepository implements EventRepository {
     latitude: 37.57,
     longitude: 126.98,
   );
+
+  @override
+  Future<List<EventSummary>> fetchNearbyEvents({
+    required double lat,
+    required double lng,
+    int? radiusM,
+  }) => fetchEvents();
 }

@@ -112,3 +112,32 @@ class UploadResult {
   final String? badgeTitle;
   final String? badgeDescription;
 }
+
+/// 업로드 전 등급 미리보기 결과 (API-PST-002, PST-047).
+@immutable
+class TierPreview {
+  const TierPreview({
+    required this.tier,
+    this.distanceM,
+    this.verifyRadiusM,
+    this.withinRadius = false,
+  });
+
+  factory TierPreview.fromJson(Map<String, Object?> json) => TierPreview(
+    tier: json['tier'] as String? ?? 'LOW',
+    distanceM: (json['distanceM'] as num?)?.toInt(),
+    verifyRadiusM: (json['verifyRadiusM'] as num?)?.toInt(),
+    withinRadius: json['withinRadius'] as bool? ?? false,
+  );
+
+  final String tier;
+  final int? distanceM;
+  final int? verifyRadiusM;
+  final bool withinRadius;
+
+  String get label => switch (tier) {
+    'HIGH' => '높음',
+    'MEDIUM' => '보통',
+    _ => '낮음',
+  };
+}

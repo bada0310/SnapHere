@@ -138,28 +138,114 @@ class DeviceUploadRepository implements UploadRepository {
   }
 
   @override
+  Future<List<String>> suggestTags({
+    required String placeId,
+    String? eventId,
+    String? query,
+  }) async {
+    final token = accessToken;
+    if (token == null) return const [];
+    try {
+      final items = jsonMapList(
+        await _api.get(
+          '/tags/suggestions',
+          query: {
+            'placeId': _numericId(placeId, 'plc_'),
+            'eventId': ?eventId == null ? null : _numericId(eventId, 'evt_'),
+            'query': ?query,
+          },
+          accessToken: token,
+        ),
+      );
+      return items
+          .map((item) => item['name'] as String? ?? '')
+          .where((name) => name.isNotEmpty)
+          .toList(growable: false);
+    } on ApiException {
+      // 추천은 보조 기능이다. 실패해도 직접 입력으로 계속 쓸 수 있어야 한다.
+      return const [];
+    }
+  }
+
+  @override
+  Future<TierPreview?> previewTier({
+    required String placeId,
+    String? eventId,
+    required bool fromCamera,
+    DateTime? takenAt,
+    double? lat,
+    double? lng,
+  }) async {
+    final token = accessToken;
+    if (token == null) return null;
+    try {
+      return TierPreview.fromJson(
+        jsonMap(
+          await _api.post(
+            '/posts/tier-preview',
+            body: {
+              'placeId': int.parse(_numericId(placeId, 'plc_')),
+              if (eventId != null)
+                'eventId': int.parse(_numericId(eventId, 'evt_')),
+              'source': fromCamera ? 'CAMERA' : 'GALLERY',
+              'takenAt': ?takenAt?.toUtc().toIso8601String(),
+              'lat': ?lat,
+              'lng': ?lng,
+            },
+            accessToken: token,
+          ),
+        ),
+      );
+    } on ApiException {
+      return null;
+    }
+  }
+
+  String _numericId(String value, String prefix) =>
+      value.replaceFirst(prefix, '');
+
+  @override
   Future<UploadResult> createPost(UploadDraft draft) async {
+    final token = _requireAccessToken();
+    final photos = await Future.wait(draft.photos.map(_resolveOriginal));
+    final files = await Future.wait(photos.map(_fileInfo));
+    final uploadTargets = await _issueUploadTargets(files, token);
+    await _uploadFiles(uploadTargets, files);
+    final response = await _createPost(draft, photos, uploadTargets, token);
+    return _toUploadResult(response);
+  }
+
+  String _requireAccessToken() {
     final token = accessToken;
     if (token == null) {
       throw const UploadPermissionException('로그인이 필요한 기능입니다.');
     }
-    final photos = await Future.wait(draft.photos.map(_resolveOriginal));
-    final files = await Future.wait(photos.map(_fileInfo));
-    final issued = jsonMapList(
-      await _api.post(
-        '/media/presigned-urls',
-        accessToken: token,
-        body: {
-          'purpose': 'POST_IMAGE',
-          'files': [
-            for (final file in files)
-              {'mimeType': file.mimeType, 'sizeBytes': file.bytes.length},
-          ],
-        },
-      ),
-    );
-    for (var index = 0; index < issued.length; index++) {
-      final target = issued[index];
+    return token;
+  }
+
+  Future<List<Map<String, Object?>>> _issueUploadTargets(
+    List<({List<int> bytes, String mimeType})> files,
+    String token,
+  ) async => jsonMapList(
+    await _api.post(
+      '/media/presigned-urls',
+      accessToken: token,
+      body: {
+        'purpose': 'POST_IMAGE',
+        'files': [
+          for (final file in files)
+            {'mimeType': file.mimeType, 'sizeBytes': file.bytes.length},
+        ],
+      },
+    ),
+  );
+
+  Future<void> _uploadFiles(
+    List<Map<String, Object?>> targets,
+    List<({List<int> bytes, String mimeType})> files,
+  ) async {
+    for (var index = 0; index < targets.length; index++) {
+      final target = targets[index];
       final url = target['uploadUrl']! as String;
       if (Uri.parse(url).queryParameters['stub-presign'] == 'true') continue;
       final headers = Map<String, String>.from(target['headers'] as Map? ?? {});
@@ -172,41 +258,59 @@ class DeviceUploadRepository implements UploadRepository {
         throw ApiException('사진 업로드에 실패했습니다. (${response.statusCode})');
       }
     }
+  }
+
+  Future<Map<String, Object?>> _createPost(
+    UploadDraft draft,
+    List<UploadPhoto> photos,
+    List<Map<String, Object?>> uploadTargets,
+    String token,
+  ) async {
     final primary = photos.firstWhere(
       (photo) => photo.id == draft.primaryPhoto.id,
     );
-    final data = jsonMap(
+    return jsonMap(
       await _api.post(
         '/posts',
         accessToken: token,
-        body: {
-          'placeId': int.parse(draft.place.id.replaceFirst('plc_', '')),
-          if (draft.eventId != null)
-            'eventId': int.parse(draft.eventId!.replaceFirst('evt_', '')),
-          'content': [
-            draft.title,
-            draft.description,
-          ].where((value) => value.isNotEmpty).join('\n'),
-          'originalLanguageCode': 'ko',
-          'images': [
-            for (var index = 0; index < issued.length; index++)
-              {
-                'imageKey': issued[index]['imageKey'],
-                'sortOrder': index + 1,
-                'aspectRatio': photos[index].aspectRatio,
-              },
-          ],
-          'tagNames': [...draft.fixedTags, ...draft.userTags],
-          'source': primary.source == UploadPhotoSource.camera
-              ? 'CAMERA'
-              : 'ALBUM',
-          if (primary.source == UploadPhotoSource.camera)
-            'takenAt': DateTime.now().toUtc().toIso8601String(),
-          if (primary.latitude != null) 'lat': primary.latitude,
-          if (primary.longitude != null) 'lng': primary.longitude,
-        },
+        body: _createPostBody(draft, photos, uploadTargets, primary),
       ),
     );
+  }
+
+  Map<String, Object?> _createPostBody(
+    UploadDraft draft,
+    List<UploadPhoto> photos,
+    List<Map<String, Object?>> uploadTargets,
+    UploadPhoto primary,
+  ) => {
+    'placeId': _numericId(draft.place.id, 'plc_'),
+    if (draft.eventId != null) 'eventId': _numericId(draft.eventId!, 'evt_'),
+    'content': [
+      draft.title,
+      draft.description,
+    ].where((value) => value.isNotEmpty).join('\n'),
+    'originalLanguageCode': 'ko',
+    'images': [
+      for (var index = 0; index < uploadTargets.length; index++)
+        {
+          'imageKey': uploadTargets[index]['imageKey'],
+          'sortOrder': index + 1,
+          'aspectRatio': photos[index].aspectRatio,
+        },
+    ],
+    'tagNames': [...draft.fixedTags, ...draft.userTags],
+    'source': primary.source == UploadPhotoSource.camera ? 'CAMERA' : 'ALBUM',
+    if (primary.source == UploadPhotoSource.camera)
+      'takenAt': DateTime.now().toUtc().toIso8601String(),
+    if (primary.latitude != null) 'lat': primary.latitude,
+    if (primary.longitude != null) 'lng': primary.longitude,
+  };
+
+  int _numericId(String id, String prefix) =>
+      int.parse(id.replaceFirst(prefix, ''));
+
+  UploadResult _toUploadResult(Map<String, Object?> data) {
     final post = jsonMap(data['post']);
     final summary = jsonMap(post['summary']);
     final badges = jsonMapList(data['earnedBadges']);

@@ -10,6 +10,13 @@ abstract interface class EventRepository {
   Future<List<EventPost>> fetchEventPosts(String eventId);
 
   Future<EventUploadContext> fetchUploadContext(String eventId);
+
+  /// 현재 위치 주변에서 열리는 행사 (API-EVT-002).
+  Future<List<EventSummary>> fetchNearbyEvents({
+    required double lat,
+    required double lng,
+    int? radiusM,
+  });
 }
 
 class EventFailure implements Exception {

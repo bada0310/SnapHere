@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
+import 'package:snap_here/src/features/social/presentation/follow_button.dart';
+import 'package:snap_here/src/features/social/application/social_providers.dart';
+import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/community/application/community_providers.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
 import 'package:snap_here/src/features/community/presentation/widgets/community_empty_state.dart';
@@ -177,13 +180,7 @@ class _FeedBody extends ConsumerWidget {
           // 전체 탭이 비는 경우의 화면은 `08 Error & Empty States`의
           // `08_상태_게시글없음`이라 그 섹션 작업에서 맞춘다.
           return tab == CommunityFeedTab.following
-              ? CommunityEmptyState(
-                  icon: Icons.people_outline,
-                  title: '팔로잉 중인 사용자가 없어요',
-                  description: '관심 있는 여행자를 팔로우해 보세요.\n새로운 여행 소식을 먼저 볼 수 있어요.',
-                  actionLabel: '사용자 찾기',
-                  onAction: () => context.push('/community/search'),
-                )
+              ? const _FollowingEmptyState()
               : const CommunityEmptyState(
                   icon: Icons.photo_outlined,
                   title: '아직 게시글이 없어요',
@@ -272,6 +269,62 @@ class _FeedError extends StatelessWidget {
       actionLabel: '다시 시도',
       onAction: onRetry,
       actionStyle: CommunityEmptyActionStyle.outlined,
+    );
+  }
+}
+
+/// 팔로잉이 없을 때는 빈 화면 대신 추천 사용자를 함께 보여준다 (결정 8번, SOC-005).
+class _FollowingEmptyState extends ConsumerWidget {
+  const _FollowingEmptyState();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final recommended = ref.watch(recommendedUsersProvider);
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        CommunityEmptyState(
+          icon: Icons.people_outline,
+          title: '팔로잉 중인 사용자가 없어요',
+          description: '관심 있는 여행자를 팔로우해 보세요.\n새로운 여행 소식을 먼저 볼 수 있어요.',
+          actionLabel: '사용자 찾기',
+          onAction: () => context.push('/community/search'),
+        ),
+        recommended.maybeWhen(
+          data: (users) => users.isEmpty
+              ? const SizedBox.shrink()
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppSpacing.xl),
+                    Text(
+                      '이런 여행자는 어때요?',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    for (final user in users)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: ProfileAvatar(url: user.imageUrl, size: 44),
+                        title: Text(user.nickname),
+                        subtitle: user.bio == null || user.bio!.isEmpty
+                            ? null
+                            : Text(
+                                user.bio!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                        trailing: FollowButton(
+                          userId: user.userId,
+                          initialFollowing: user.isFollowing,
+                        ),
+                        onTap: () => context.push('/users/${user.userId}'),
+                      ),
+                  ],
+                ),
+          orElse: () => const SizedBox.shrink(),
+        ),
+      ],
     );
   }
 }

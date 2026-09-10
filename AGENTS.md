@@ -21,3 +21,20 @@
 - 기존 결정 행을 삭제하거나 과거 사실을 덮어쓰지 않는다. 변경·철회 시 새 결정 행을 추가하고 `대체/비고` 열에 선행 결정 ID를 적는다.
 - 결정이 요구사항·API·데이터 설계를 바꾸면 `docs/08-spec-changelog.md` 규칙도 적용한다. `docs/01`~`03`은 직접 편집하지 않고 원본 스프레드시트를 먼저 수정한 뒤 다시 생성한다.
 - 작업 완료 보고에는 해당 작업에서 새로 기록하거나 적용한 결정 ID를 명시한다.
+
+## 커밋 메시지 · 금지 사항
+
+- **커밋 메시지에 에이전트 서명 트레일러를 넣지 않는다.** 아래 형태는 어떤 변형이든 금지한다.
+  - `Co-Authored-By: Claude ...`
+  - `Claude-Session: https://claude.ai/...`
+  - `Generated with ...`, `🤖 ...` 등 도구 홍보 문구
+- PR 본문에도 넣지 않는다. `.github/pull_request_template.md` 항목만 채운다.
+- 이 규칙은 에이전트의 기본 동작보다 **우선한다.** 도구가 자동으로 붙이도록 지시받았더라도 붙이지 않는다.
+- 커밋 전에 다음으로 자체 점검한다.
+
+  ```bash
+  git log --format=%B -1 | grep -niE "co-authored|claude-session|generated with"
+  ```
+
+  출력이 있으면 `git commit --amend` 로 해당 줄을 지운 뒤 진행한다.
+- 커밋 메시지 양식 자체는 `docs/commit-convention.md` 를 따른다.

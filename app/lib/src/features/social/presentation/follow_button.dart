@@ -34,23 +34,7 @@ class FollowButton extends ConsumerWidget {
         ),
         onPressed: status.busy
             ? null
-            : () async {
-                if (session?.isAuthenticated != true) {
-                  requestLogin(context);
-                  return;
-                }
-                try {
-                  await ref
-                      .read(followStateProvider.notifier)
-                      .toggle(userId, initialFollowing: initialFollowing);
-                } on Object catch (error) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('팔로우를 변경하지 못했어요. $error')),
-                    );
-                  }
-                }
-              },
+            : () => _toggleFollow(context, ref, session?.isAuthenticated),
         child: status.busy
             ? const SizedBox.square(
                 dimension: 16,
@@ -65,5 +49,25 @@ class FollowButton extends ConsumerWidget {
               ),
       ),
     );
+  }
+
+  Future<void> _toggleFollow(
+    BuildContext context,
+    WidgetRef ref,
+    bool? isAuthenticated,
+  ) async {
+    if (isAuthenticated != true) {
+      requestLogin(context);
+      return;
+    }
+    try {
+      await ref
+          .read(followStateProvider.notifier)
+          .toggle(userId, initialFollowing: initialFollowing);
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('팔로우를 변경하지 못했어요. $error')));
+    }
   }
 }

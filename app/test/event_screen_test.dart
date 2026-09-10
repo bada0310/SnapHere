@@ -83,6 +83,13 @@ class _StubEventRepository implements EventRepository {
       badge: detail.badge,
     );
   }
+
+  @override
+  Future<List<EventSummary>> fetchNearbyEvents({
+    required double lat,
+    required double lng,
+    int? radiusM,
+  }) async => const [];
 }
 
 Widget _wrap({

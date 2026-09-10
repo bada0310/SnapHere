@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as image;
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/features/event/application/event_providers.dart';
+import 'package:snap_here/src/features/event/domain/event_models.dart';
 import 'package:snap_here/src/features/upload/application/upload_controller.dart';
 import 'package:snap_here/src/features/upload/domain/upload_models.dart';
 
@@ -81,94 +82,108 @@ class UploadScreen extends ConsumerWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     if (eventUpload?.hasError == true) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('이벤트 참여')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.event_busy_outlined, size: 48),
-                const SizedBox(height: AppSpacing.md),
-                Text('${eventUpload!.error}', textAlign: TextAlign.center),
-                const SizedBox(height: AppSpacing.lg),
-                FilledButton(
-                  onPressed: () =>
-                      ref.invalidate(eventUploadContextProvider(eventId!)),
-                  child: const Text('다시 시도'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _buildEventError(ref, eventUpload!.error);
     }
     final resolvedEvent = eventUpload?.value;
     return upload.when(
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (error, _) => Scaffold(
-        appBar: AppBar(title: const Text('새 게시물')),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 48),
-              const SizedBox(height: AppSpacing.md),
-              Text('사진을 불러오지 못했어요\n$error', textAlign: TextAlign.center),
-              const SizedBox(height: AppSpacing.lg),
-              FilledButton(
-                onPressed: () => ref.invalidate(uploadControllerProvider),
-                child: const Text('다시 시도'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              TextButton(
-                onPressed: () => ref
-                    .read(uploadControllerProvider.notifier)
-                    .openMediaSettings(),
-                child: const Text('앱 설정 열기'),
-              ),
-            ],
-          ),
+      error: (error, _) => _buildUploadError(ref, error),
+      data: (state) => _buildFlow(ref, state, resolvedEvent),
+    );
+  }
+
+  Widget _buildEventError(WidgetRef ref, Object? error) => Scaffold(
+    appBar: AppBar(title: const Text('이벤트 참여')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.event_busy_outlined, size: 48),
+            const SizedBox(height: AppSpacing.md),
+            Text('$error', textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton(
+              onPressed: () =>
+                  ref.invalidate(eventUploadContextProvider(eventId!)),
+              child: const Text('다시 시도'),
+            ),
+          ],
         ),
       ),
-      data: (state) {
-        if (resolvedEvent != null &&
-            state.eventContext?.eventId != resolvedEvent.event.eventId) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref
-                .read(uploadControllerProvider.notifier)
-                .applyEventContext(
-                  UploadEventContext(
-                    eventId: resolvedEvent.event.eventId,
-                    eventTitle: resolvedEvent.event.title,
-                    place: UploadPlace(
-                      id: resolvedEvent.place.placeId,
-                      name: resolvedEvent.place.name,
-                      address: resolvedEvent.place.address,
-                    ),
-                    fixedTags: resolvedEvent.fixedTags,
-                    verifyRadiusM: resolvedEvent.verifyRadiusM,
-                    badgeTitle: resolvedEvent.badge?.name,
-                  ),
-                );
-          });
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        return _UploadFlowPopScope(
-          state: state,
-          child: switch (state.step) {
-            UploadStep.gallery => _GalleryStep(state),
-            UploadStep.review => _ReviewStep(state),
-            UploadStep.form => _FormStep(state),
-            UploadStep.complete => _CompleteStep(state),
-          },
-        );
+    ),
+  );
+
+  Widget _buildUploadError(WidgetRef ref, Object error) => Scaffold(
+    appBar: AppBar(title: const Text('새 게시물')),
+    body: Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 48),
+          const SizedBox(height: AppSpacing.md),
+          Text('사진을 불러오지 못했어요\n$error', textAlign: TextAlign.center),
+          const SizedBox(height: AppSpacing.lg),
+          FilledButton(
+            onPressed: () => ref.invalidate(uploadControllerProvider),
+            child: const Text('다시 시도'),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextButton(
+            onPressed: () =>
+                ref.read(uploadControllerProvider.notifier).openMediaSettings(),
+            child: const Text('앱 설정 열기'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildFlow(
+    WidgetRef ref,
+    UploadState state,
+    EventUploadContext? resolvedEvent,
+  ) {
+    if (resolvedEvent != null &&
+        state.eventContext?.eventId != resolvedEvent.event.eventId) {
+      _applyEventContextAfterBuild(ref, resolvedEvent);
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return _UploadFlowPopScope(
+      state: state,
+      child: switch (state.step) {
+        UploadStep.gallery => _GalleryStep(state),
+        UploadStep.review => _ReviewStep(state),
+        UploadStep.form => _FormStep(state),
+        UploadStep.complete => _CompleteStep(state),
       },
     );
+  }
+
+  void _applyEventContextAfterBuild(
+    WidgetRef ref,
+    EventUploadContext resolvedEvent,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(uploadControllerProvider.notifier)
+          .applyEventContext(
+            UploadEventContext(
+              eventId: resolvedEvent.event.eventId,
+              eventTitle: resolvedEvent.event.title,
+              place: UploadPlace(
+                id: resolvedEvent.place.placeId,
+                name: resolvedEvent.place.name,
+                address: resolvedEvent.place.address,
+              ),
+              fixedTags: resolvedEvent.fixedTags,
+              verifyRadiusM: resolvedEvent.verifyRadiusM,
+              badgeTitle: resolvedEvent.badge?.name,
+            ),
+          );
+    });
   }
 }
 
@@ -319,31 +334,7 @@ class _GalleryStep extends ConsumerWidget {
                         return InkWell(
                           key: const Key('upload-camera-tile'),
                           onTap: () async {
-                            if (state.selectedPhotoIds.length >= 4) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('사진은 최대 4장까지 선택할 수 있어요.'),
-                                ),
-                              );
-                              return;
-                            }
-                            final photo = await Navigator.of(context)
-                                .push<UploadPhoto>(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const _CameraPreviewScreen(),
-                                  ),
-                                );
-                            if (photo != null) {
-                              final added = controller.addCapturedPhoto(photo);
-                              if (!added && context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('사진은 최대 4장까지 선택할 수 있어요.'),
-                                  ),
-                                );
-                              }
-                            }
+                            await _capturePhoto(context, controller);
                           },
                           child: const ColoredBox(
                             color: Color(0xFF21262E),
@@ -362,25 +353,7 @@ class _GalleryStep extends ConsumerWidget {
                         photo: photo,
                         order: order < 0 ? null : order + 1,
                         onTap: () {
-                          if (order < 0 && state.selectedPhotoIds.length >= 4) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('사진은 최대 4장까지 선택할 수 있어요.'),
-                              ),
-                            );
-                            return;
-                          }
-                          if (order >= 0 &&
-                              state.selectedPhotoIds.length == 1) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('사진을 한 장 이상 선택해 주세요.'),
-                              ),
-                            );
-                            return;
-                          }
-                          controller.togglePhoto(photo.id);
-                          if (order < 0) controller.setPrimary(photo.id);
+                          _togglePhoto(context, controller, photo, order);
                         },
                       );
                     },
@@ -389,6 +362,53 @@ class _GalleryStep extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _capturePhoto(
+    BuildContext context,
+    UploadController controller,
+  ) async {
+    if (_photoLimitReached) {
+      _showSelectionMessage(context, _photoLimitMessage);
+      return;
+    }
+    final photo = await Navigator.of(context).push<UploadPhoto>(
+      MaterialPageRoute(builder: (_) => const _CameraPreviewScreen()),
+    );
+    if (photo == null) return;
+    final added = controller.addCapturedPhoto(photo);
+    if (!added && context.mounted) {
+      _showSelectionMessage(context, _photoLimitMessage);
+    }
+  }
+
+  void _togglePhoto(
+    BuildContext context,
+    UploadController controller,
+    UploadPhoto photo,
+    int order,
+  ) {
+    if (order < 0 && _photoLimitReached) {
+      _showSelectionMessage(context, _photoLimitMessage);
+      return;
+    }
+    if (order >= 0 && state.selectedPhotoIds.length == 1) {
+      _showSelectionMessage(context, '사진을 한 장 이상 선택해 주세요.');
+      return;
+    }
+    controller.togglePhoto(photo.id);
+    if (order < 0) controller.setPrimary(photo.id);
+  }
+
+  bool get _photoLimitReached =>
+      state.selectedPhotoIds.length >= UploadLimits.photoCount;
+
+  static const _photoLimitMessage =
+      '사진은 최대 ${UploadLimits.photoCount}장까지 선택할 수 있어요.';
+
+  void _showSelectionMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -433,7 +453,7 @@ class _ReviewStep extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
               Text(
-                '선택한 사진 (${state.selectedPhotoIds.length}/4)',
+                '선택한 사진 (${state.selectedPhotoIds.length}/${UploadLimits.photoCount})',
                 style: Theme.of(context).textTheme.labelLarge
                     ?.copyWith(color: AppColors.textSecondary),
               ),
@@ -665,12 +685,12 @@ class _FormStep extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextField(
-                  enabled: state.userTags.length < 8,
+                  enabled: state.userTags.length < UploadLimits.userTagCount,
                   textInputAction: TextInputAction.done,
                   onSubmitted: controller.addUserTag,
                   decoration: InputDecoration(
-                    hintText: state.userTags.length < 8
-                        ? '태그 입력 후 완료 (${state.userTags.length}/8)'
+                    hintText: state.userTags.length < UploadLimits.userTagCount
+                        ? '태그 입력 후 완료 (${state.userTags.length}/${UploadLimits.userTagCount})'
                         : '자유 태그를 모두 입력했어요',
                     prefixText: '# ',
                     constraints: const BoxConstraints(minHeight: 46),
@@ -1236,164 +1256,171 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
           Center(
             child: AspectRatio(
               aspectRatio: _viewRatio.portraitAspectRatio,
-              child: _error != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppSpacing.xl),
-                        child: Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    )
-                  : !ready
-                  ? const Center(child: CircularProgressIndicator())
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final size = constraints.biggest;
-                        final cameraSize = controller!.value.previewSize!;
-                        return GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onScaleStart: _onScaleStart,
-                          onScaleUpdate: _onScaleUpdate,
-                          onTapDown: (details) => _focusAt(details, size),
-                          child: ClipRect(
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                FittedBox(
-                                  fit: BoxFit.cover,
-                                  child: SizedBox(
-                                    width: cameraSize.height,
-                                    height: cameraSize.width,
-                                    child: CameraPreview(controller),
-                                  ),
-                                ),
-                                if (_focusPoint case final point?)
-                                  Positioned(
-                                    left: point.dx * size.width - 28,
-                                    top: point.dy * size.height - 28,
-                                    child: IgnorePointer(
-                                      child: Container(
-                                        width: 56,
-                                        height: 56,
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.5,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  bottom: AppSpacing.lg,
-                                  child: Center(child: _buildZoomBadge()),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+              child: _buildPreview(controller, ready),
             ),
           ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          tooltip: '카메라 닫기',
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close, color: Colors.white),
-                        ),
-                        TextButton.icon(
-                          onPressed: ready ? _toggleFlash : null,
-                          icon: Icon(
-                            _flashMode == FlashMode.auto
-                                ? Icons.flash_auto
-                                : Icons.flash_off,
-                            color: Colors.white,
-                          ),
-                          label: Text(
-                            _flashMode == FlashMode.auto ? '자동' : '끔',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  _buildRatioSelector(),
-                ],
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.xl,
-                  0,
-                  AppSpacing.xl,
-                  AppSpacing.lg,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton.filledTonal(
-                      onPressed: _cameras.length > 1 ? _switchCamera : null,
-                      icon: const Icon(Icons.cameraswitch_outlined),
-                    ),
-                    InkWell(
-                      key: const Key('upload-shutter'),
-                      onTap: ready && !_takingPicture ? _takePicture : null,
-                      customBorder: const CircleBorder(),
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                        ),
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.image_outlined),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          _buildTopControls(ready),
+          _buildBottomControls(ready),
         ],
       ),
     );
   }
+
+  Widget _buildPreview(CameraController? controller, bool ready) {
+    final error = _error;
+    if (error != null) return _buildCameraError(error);
+    if (!ready || controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return LayoutBuilder(
+      builder: (_, constraints) =>
+          _buildInteractivePreview(controller, constraints.biggest),
+    );
+  }
+
+  Widget _buildCameraError(String message) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white),
+      ),
+    ),
+  );
+
+  Widget _buildInteractivePreview(CameraController controller, Size size) {
+    final cameraSize = controller.value.previewSize!;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onScaleStart: _onScaleStart,
+      onScaleUpdate: _onScaleUpdate,
+      onTapDown: (details) => _focusAt(details, size),
+      child: ClipRect(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: cameraSize.height,
+                height: cameraSize.width,
+                child: CameraPreview(controller),
+              ),
+            ),
+            if (_focusPoint case final point?)
+              _buildFocusIndicator(point, size),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: AppSpacing.lg,
+              child: Center(child: _buildZoomBadge()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFocusIndicator(Offset point, Size size) => Positioned(
+    left: point.dx * size.width - 28,
+    top: point.dy * size.height - 28,
+    child: IgnorePointer(
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white, width: 1.5),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    ),
+  );
+
+  Widget _buildTopControls(bool ready) => SafeArea(
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: '카메라 닫기',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                ),
+                TextButton.icon(
+                  onPressed: ready ? _toggleFlash : null,
+                  icon: Icon(_flashIcon, color: Colors.white),
+                  label: Text(
+                    _flashLabel,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _buildRatioSelector(),
+        ],
+      ),
+    ),
+  );
+
+  Widget _buildBottomControls(bool ready) => SafeArea(
+    child: Align(
+      alignment: Alignment.bottomCenter,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          0,
+          AppSpacing.xl,
+          AppSpacing.lg,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton.filledTonal(
+              onPressed: _cameras.length > 1 ? _switchCamera : null,
+              icon: const Icon(Icons.cameraswitch_outlined),
+            ),
+            _buildShutterButton(ready),
+            IconButton.filledTonal(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.image_outlined),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _buildShutterButton(bool ready) => InkWell(
+    key: const Key('upload-shutter'),
+    onTap: ready && !_takingPicture ? _takePicture : null,
+    customBorder: const CircleBorder(),
+    child: Container(
+      width: 80,
+      height: 80,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 4),
+      ),
+      child: const DecoratedBox(
+        decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+      ),
+    ),
+  );
+
+  IconData get _flashIcon =>
+      _flashMode == FlashMode.auto ? Icons.flash_auto : Icons.flash_off;
+
+  String get _flashLabel => _flashMode == FlashMode.auto ? '자동' : '끔';
 
   Widget _buildRatioSelector() => DecoratedBox(
     decoration: BoxDecoration(
@@ -1754,57 +1781,56 @@ class _PlaceSearchScreenState extends ConsumerState<_PlaceSearchScreen> {
           Expanded(
             child: FutureBuilder<List<UploadPlace>>(
               future: _results,
-              builder: (context, snapshot) {
-                if (!_hasSearched) {
-                  return const Center(child: Text('장소 이름이나 주소를 검색해 주세요'));
-                }
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('장소 검색에 실패했어요'),
-                        const SizedBox(height: AppSpacing.md),
-                        OutlinedButton(
-                          onPressed: () => _submit(_searchController.text),
-                          child: const Text('다시 시도'),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                final places = snapshot.data ?? const [];
-                if (places.isEmpty) {
-                  return const Center(child: Text('검색 결과가 없어요'));
-                }
-                return ListView.separated(
-                  itemCount: places.length,
-                  separatorBuilder: (_, _) => const Divider(),
-                  itemBuilder: (context, index) {
-                    final place = places[index];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      leading: const CircleAvatar(
-                        backgroundColor: AppColors.brandSubtle,
-                        child: Icon(
-                          Icons.location_on_outlined,
-                          color: AppColors.brand,
-                        ),
-                      ),
-                      title: Text(place.name),
-                      subtitle: Text(place.address),
-                      onTap: () => Navigator.of(context).pop(place),
-                    );
-                  },
-                );
-              },
+              builder: (_, snapshot) => _buildResults(snapshot),
             ),
           ),
         ],
       ),
     ),
+  );
+
+  Widget _buildResults(AsyncSnapshot<List<UploadPlace>> snapshot) {
+    if (!_hasSearched) {
+      return const Center(child: Text('장소 이름이나 주소를 검색해 주세요'));
+    }
+    if (snapshot.connectionState != ConnectionState.done) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (snapshot.hasError) return _buildSearchError();
+    final places = snapshot.data ?? const [];
+    if (places.isEmpty) return const Center(child: Text('검색 결과가 없어요'));
+    return _buildPlaceList(places);
+  }
+
+  Widget _buildSearchError() => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('장소 검색에 실패했어요'),
+        const SizedBox(height: AppSpacing.md),
+        OutlinedButton(
+          onPressed: () => _submit(_searchController.text),
+          child: const Text('다시 시도'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildPlaceList(List<UploadPlace> places) => ListView.separated(
+    itemCount: places.length,
+    separatorBuilder: (_, _) => const Divider(),
+    itemBuilder: (context, index) {
+      final place = places[index];
+      return ListTile(
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        leading: const CircleAvatar(
+          backgroundColor: AppColors.brandSubtle,
+          child: Icon(Icons.location_on_outlined, color: AppColors.brand),
+        ),
+        title: Text(place.name),
+        subtitle: Text(place.address),
+        onTap: () => Navigator.of(context).pop(place),
+      );
+    },
   );
 }

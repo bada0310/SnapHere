@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:snap_here/src/core/ui/relative_time.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -54,6 +55,9 @@ class _StubCommunityRepository implements CommunityRepository {
     if (searchPosts.isEmpty) return const CommunitySearchResult.empty();
     return CommunitySearchResult(posts: searchPosts, totalCount: 24);
   }
+
+  @override
+  Future<List<CommunityPost>> fetchTagPosts(String tagId) async => const [];
 }
 
 CommunityPost _post({String id = 'p-1', int imageCount = 1}) => CommunityPost(

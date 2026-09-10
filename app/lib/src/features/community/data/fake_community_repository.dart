@@ -142,4 +142,11 @@ class FakeCommunityRepository implements CommunityRepository {
     // 목록 길이와 총 건수가 다른 경우를 화면이 견디는지 확인할 수 있게 맞춘다.
     return CommunitySearchResult(posts: matched, totalCount: 24);
   }
+
+  @override
+  Future<List<CommunityPost>> fetchTagPosts(String tagId) async =>
+      (await fetchFeed(
+        tab: CommunityFeedTab.all,
+        sort: CommunitySort.latest,
+      )).posts;
 }
