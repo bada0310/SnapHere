@@ -9,6 +9,9 @@ import 'package:snap_here/src/features/explore/application/explore_providers.dar
 import 'package:snap_here/src/features/explore/domain/explore_models.dart';
 import 'package:snap_here/src/features/home/application/home_map_providers.dart';
 import 'package:snap_here/src/features/home/presentation/region_posts_sheet.dart';
+import 'package:snap_here/src/features/map/application/map_providers.dart';
+import 'package:snap_here/src/features/map/domain/map_models.dart';
+import 'package:snap_here/src/features/map/presentation/photo_marker_layer.dart';
 import 'package:snap_here/src/features/map/presentation/snap_map.dart';
 
 /// Figma 92:312 / 92:380 / 92:446 / 92:561.
@@ -25,11 +28,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   double _extent = .58;
   bool _locating = false;
   bool _locationGranted = false;
+  MapViewport? _viewport;
+  double _zoom = koreaCamera.zoom;
+  int _viewportGeneration = 0;
+  bool _mapActive = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active = TickerMode.valuesOf(context).enabled;
+    if (active && !_mapActive && _viewport != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_mapActive) return;
+        ref.invalidate(viewportPhotoMarkersProvider(_viewport!));
+        ref.invalidate(mapRegionsProvider);
+      });
+    }
+    _mapActive = active;
+  }
+
+  Future<void> _syncViewport() async {
+    final map = _map;
+    if (map == null) return;
+    final generation = ++_viewportGeneration;
+    try {
+      final region = await map.getVisibleRegion();
+      if (!mounted || generation != _viewportGeneration) return;
+      final viewport = MapViewport(
+        west: region.southwest.longitude,
+        south: region.southwest.latitude,
+        east: region.northeast.longitude,
+        north: region.northeast.latitude,
+        zoom: _zoom.floor(),
+      );
+      // 플랫폼 지도 생성 직후에는 아직 유효한 범위가 없을 수 있다.
+      if (viewport.west >= viewport.east || viewport.south >= viewport.north) {
+        return;
+      }
+      if (_viewport != viewport) setState(() => _viewport = viewport);
+    } on Object {
+      // 다음 카메라 idle에서 다시 동기화한다.
+    }
+  }
+
+  void _cameraMoved(CameraPosition position) {
+    _viewportGeneration++;
+    final crossedRotationZoom = (_zoom < 14) != (position.zoom < 14);
+    _zoom = position.zoom;
+    if (crossedRotationZoom) setState(() {});
+  }
 
   @override
   void dispose() {
     _sheet.dispose();
-    _map?.dispose();
     super.dispose();
   }
 
@@ -124,6 +175,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final regions = ref.watch(mapRegionsProvider);
+    final photos = _viewport == null
+        ? const AsyncData<List<PhotoMarker>>([])
+        : ref.watch(viewportPhotoMarkersProvider(_viewport!));
     final items = regions.value ?? const <RegionOverview>[];
     final selected = items
         .where((region) => region.areaCode == _areaCode)
@@ -169,18 +223,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             builder: (context, constraints) => Stack(
               children: [
                 Positioned.fill(
-                  child: SnapMap(
-                    markers: markers,
-                    onCreated: (controller) => _map = controller,
-                    myLocationEnabled: _locationGranted,
-                    onTap: (_) {
-                      if (selected != null) setState(() => _areaCode = null);
-                    },
-                    padding: EdgeInsets.only(
-                      top: expanded ? 0 : 60,
-                      bottom: selected == null
-                          ? 0
-                          : constraints.maxHeight * _extent,
+                  child: PhotoMarkerLayer(
+                    photos: photos.value ?? const [],
+                    zoom: _zoom.floor(),
+                    builder: (photoMarkers) => SnapMap(
+                      markers: {...markers, ...photoMarkers},
+                      onCreated: (controller) {
+                        _map = controller;
+                        _syncViewport();
+                      },
+                      onCameraMove: _cameraMoved,
+                      onCameraIdle: _syncViewport,
+                      myLocationEnabled: _locationGranted,
+                      onTap: (_) {
+                        if (selected != null) setState(() => _areaCode = null);
+                      },
+                      padding: EdgeInsets.only(
+                        top: expanded ? 0 : 60,
+                        bottom: selected == null
+                            ? 0
+                            : constraints.maxHeight * _extent,
+                      ),
                     ),
                   ),
                 ),
@@ -237,14 +300,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                     ),
                   ),
-                if (regions.isLoading)
+                if (regions.isLoading || photos.isLoading)
                   const Positioned(
                     top: 52,
                     left: 0,
                     right: 0,
                     child: LinearProgressIndicator(),
                   ),
-                if (regions.hasError)
+                if (regions.hasError || photos.hasError)
                   Positioned(
                     top: 64,
                     left: 16,
@@ -253,8 +316,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: RetryMessage(
-                          message: '지역 데이터를 불러오지 못했어요',
-                          onRetry: () => ref.invalidate(mapRegionsProvider),
+                          message: regions.hasError
+                              ? '지역 데이터를 불러오지 못했어요'
+                              : '지도 사진을 불러오지 못했어요',
+                          onRetry: () {
+                            ref.invalidate(mapRegionsProvider);
+                            if (_viewport != null) {
+                              ref.invalidate(
+                                viewportPhotoMarkersProvider(_viewport!),
+                              );
+                            }
+                          },
                         ),
                       ),
                     ),
@@ -332,7 +404,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                     child: DraggableScrollableSheet(
                       controller: _sheet,
-                      key: ValueKey(selected.areaCode),
                       initialChildSize: .58,
                       minChildSize: .25,
                       maxChildSize: .90,

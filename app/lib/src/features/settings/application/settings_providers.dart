@@ -14,7 +14,6 @@ import 'package:snap_here/src/features/settings/domain/settings_repository.dart'
 /// 상수로 두었으니 버전을 올릴 때 함께 고친다.
 const appVersionName = '0.1.0';
 
-const _translateAllKey = 'settings.translate_all';
 const _deviceIdKey = 'settings.device_id';
 
 const _useFakeSettings = bool.fromEnvironment(
@@ -103,27 +102,4 @@ class UserSettingsController extends AsyncNotifier<UserSettings> {
 final userSettingsProvider =
     AsyncNotifierProvider<UserSettingsController, UserSettings>(
       UserSettingsController.new,
-    );
-
-/// 전체 번역 표시 여부.
-///
-/// 서버에 해당 필드가 없다 — `users.locale`은 표시 언어일 뿐이고, 원문을 볼지
-/// 번역문을 볼지는 보는 사람의 취향이라 기기에 남긴다. 실제 번역문은 게시글
-/// 응답의 `translations`에서 오는데 지금은 서버가 null을 보낸다 (SYS-010).
-class TranslateAllController extends AsyncNotifier<bool> {
-  static const _storage = FlutterSecureStorage();
-
-  @override
-  Future<bool> build() async =>
-      await _storage.read(key: _translateAllKey) == 'true';
-
-  Future<void> set(bool enabled) async {
-    state = AsyncData(enabled);
-    await _storage.write(key: _translateAllKey, value: '$enabled');
-  }
-}
-
-final translateAllProvider =
-    AsyncNotifierProvider<TranslateAllController, bool>(
-      TranslateAllController.new,
     );

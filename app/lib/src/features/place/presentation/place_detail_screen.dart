@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
@@ -342,7 +343,7 @@ class _VisitorAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: () => context.push('/users/${visitor.userId}'),
+    onTap: () => openShellRoute(context, '/users/${visitor.userId}'),
     child: SizedBox(
       width: 56,
       child: Column(

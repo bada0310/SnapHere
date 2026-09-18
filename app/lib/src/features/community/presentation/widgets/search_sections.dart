@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
 import 'package:snap_here/src/features/community/domain/community_models.dart';
@@ -82,7 +83,7 @@ class SearchUserRow extends StatelessWidget {
     subtitle: user.bio == null || user.bio!.isEmpty
         ? null
         : Text(user.bio!, maxLines: 1, overflow: TextOverflow.ellipsis),
-    onTap: () => context.push('/users/${user.userId}'),
+    onTap: () => openShellRoute(context, '/users/${user.userId}'),
   );
 }
 

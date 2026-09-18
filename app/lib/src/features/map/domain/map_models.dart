@@ -97,36 +97,58 @@ class HeatmapResult {
   final bool truncated;
 }
 
-/// 셀 위에 얹는 대표 사진 (MAP-003).
+@immutable
+class PhotoMarkerCandidate {
+  const PhotoMarkerCandidate({
+    required this.postId,
+    required this.thumbnailUrl,
+  });
+
+  final String postId;
+  final String thumbnailUrl;
+}
+
+/// 셀 위에 얹는 대표 사진과 로컬 교체 후보 (MAP-020~023).
 @immutable
 class PhotoMarker {
   const PhotoMarker({
     required this.cellKey,
     required this.lat,
     required this.lng,
-    this.thumbnailUrl,
-    this.postId,
+    this.candidates = const [],
+    this.rotationIntervalMs = 3000,
   });
 
   factory PhotoMarker.fromJson(Map<String, Object?> json) {
     final candidates = (json['candidates'] as List?) ?? const [];
-    final first = candidates.isEmpty
-        ? null
-        : Map<String, Object?>.from(candidates.first as Map);
     return PhotoMarker(
       cellKey: json['cellKey'] as String? ?? '',
       lat: (json['lat'] as num?)?.toDouble() ?? 0,
       lng: (json['lng'] as num?)?.toDouble() ?? 0,
-      thumbnailUrl: first?['thumbnailUrl'] as String?,
-      postId: first?['postId'] as String?,
+      candidates: List.unmodifiable(
+        candidates
+            .whereType<Map>()
+            .map((item) {
+              final data = Map<String, Object?>.from(item);
+              return PhotoMarkerCandidate(
+                postId: data['postId'] as String? ?? '',
+                thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
+              );
+            })
+            .where(
+              (item) => item.postId.isNotEmpty && item.thumbnailUrl.isNotEmpty,
+            )
+            .take(10),
+      ),
+      rotationIntervalMs: (json['rotationIntervalMs'] as num?)?.toInt() ?? 3000,
     );
   }
 
   final String cellKey;
   final double lat;
   final double lng;
-  final String? thumbnailUrl;
-  final String? postId;
+  final List<PhotoMarkerCandidate> candidates;
+  final int rotationIntervalMs;
 }
 
 class MapFailure implements Exception {

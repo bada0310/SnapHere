@@ -145,6 +145,14 @@ void main() {
           path: '/places/plc_1',
           builder: (_, _) => const Scaffold(body: Text('place-screen')),
         ),
+        GoRoute(
+          path: '/tags/:tagId',
+          builder: (_, state) => Scaffold(
+            body: Text(
+              'tag:${state.pathParameters['tagId']}:${state.uri.queryParameters['name']}',
+            ),
+          ),
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -221,6 +229,14 @@ void main() {
     await tester.tap(find.text('전주 한옥마을'));
     await tester.pumpAndSettle();
     expect(find.text('place-screen'), findsOneWidget);
+  });
+
+  testWidgets('게시글 태그를 누르면 해당 태그 ID의 게시글 목록으로 간다', (tester) async {
+    await mount(tester);
+    await tester.tap(find.text('2026 전주 한옥마을 봄축제'));
+    await tester.pumpAndSettle();
+    expect(find.text('tag:t1:2026 전주 한옥마을 봄축제'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('없는 게시글은 즉시 안내하고 40초 뒤에도 자동 재시도하지 않는다', (tester) async {

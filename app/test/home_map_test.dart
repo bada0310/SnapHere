@@ -121,6 +121,26 @@ void main() {
     },
   );
 
+  testWidgets('switching between regions keeps one draggable sheet attached', (
+    tester,
+  ) async {
+    final repository = await mount(tester);
+    await tester.tap(find.byTooltip('지역 목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('전북'));
+    await tester.pumpAndSettle();
+    expect(repository.areaCode, 37);
+
+    await tester.tap(find.text('📍 전북'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('서울').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.areaCode, 1);
+    expect(find.byType(RegionPostsSheet), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'region selection loads filtered posts, supports sheet expansion and close',
     (tester) async {

@@ -3,10 +3,7 @@ import 'package:snap_here/src/core/network/cursor_page.dart';
 import 'package:snap_here/src/features/notification/domain/notification_models.dart';
 import 'package:snap_here/src/features/notification/domain/notification_repository.dart';
 
-/// 명세 API-NTF-001~004에 맞춰 미리 붙여 둔다.
-///
-/// 백엔드에 `NotificationController`가 아직 없어 지금은 `USE_FAKE_NOTIFICATIONS`가
-/// 기본으로 켜져 있다. 컨트롤러가 올라오면 그 상수만 false로 바꾸면 된다.
+/// 명세 API-NTF-001~004에 맞춰 준비한 알림 API 연결.
 class ApiNotificationRepository implements NotificationRepository {
   ApiNotificationRepository({required this.accessToken, ApiClient? client})
     : _client = client ?? ApiClient();

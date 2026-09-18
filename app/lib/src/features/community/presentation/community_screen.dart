@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/features/social/presentation/follow_button.dart';
 import 'package:snap_here/src/features/social/application/social_providers.dart';
@@ -39,7 +40,9 @@ class CommunityScreen extends ConsumerWidget {
               AppSpacing.lg,
               AppSpacing.md,
             ),
-            child: _SearchEntry(onTap: () => context.push('/community/search')),
+            child: _SearchEntry(
+              onTap: () => openShellRoute(context, '/community/search'),
+            ),
           ),
           _FeedTabBar(
             selected: tab,
@@ -288,7 +291,7 @@ class _FollowingEmptyState extends ConsumerWidget {
           title: '팔로잉 중인 사용자가 없어요',
           description: '관심 있는 여행자를 팔로우해 보세요.\n새로운 여행 소식을 먼저 볼 수 있어요.',
           actionLabel: '사용자 찾기',
-          onAction: () => context.push('/community/search'),
+          onAction: () => openShellRoute(context, '/community/search'),
         ),
         recommended.maybeWhen(
           data: (users) => users.isEmpty
@@ -318,7 +321,8 @@ class _FollowingEmptyState extends ConsumerWidget {
                           userId: user.userId,
                           initialFollowing: user.isFollowing,
                         ),
-                        onTap: () => context.push('/users/${user.userId}'),
+                        onTap: () =>
+                            openShellRoute(context, '/users/${user.userId}'),
                       ),
                   ],
                 ),

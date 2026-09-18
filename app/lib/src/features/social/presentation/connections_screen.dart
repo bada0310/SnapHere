@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
@@ -84,7 +84,8 @@ class _ConnectionsScreenState extends ConsumerState<ConnectionsScreen> {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: InkWell(
-                        onTap: () => context.push('/users/${user.userId}'),
+                        onTap: () =>
+                            openShellRoute(context, '/users/${user.userId}'),
                         child: Padding(
                           padding: const EdgeInsets.all(12),
                           child: Row(

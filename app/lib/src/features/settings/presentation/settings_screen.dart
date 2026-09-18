@@ -6,6 +6,7 @@ import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/features/activity/application/activity_providers.dart';
 import 'package:snap_here/src/features/activity/domain/activity_models.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
+import 'package:snap_here/src/features/auth/domain/auth_repository.dart';
 import 'package:snap_here/src/features/settings/application/settings_providers.dart';
 import 'package:snap_here/src/features/settings/domain/app_locale.dart';
 import 'package:snap_here/src/features/settings/presentation/widgets/account_deletion_dialog.dart';
@@ -14,14 +15,22 @@ import 'package:snap_here/src/features/settings/presentation/widgets/settings_se
 
 /// Figma `Wireframe_v3 / 07 Shared Detail / 07_설정`.
 ///
-/// `표시` 묶음은 v3 프레임에 없다. 기존 프로필 설정 시트에 있던 `전체 번역`을
-/// 이 화면으로 옮기면서 언어 선택과 짝지어 되살린 것이다 (SYS-010).
-class SettingsScreen extends ConsumerWidget {
+/// 자동 번역은 후속 기능이므로 동작하지 않는 번역 스위치는 노출하지 않는다.
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _signingOut = false;
+  bool _signingOutAll = false;
+
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
+    final canAct = !auth.isLoading && !_signingOut && !_signingOutAll;
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
@@ -43,21 +52,20 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.push('/me/activity'),
               ),
               SettingsRow(
-                label: '로그아웃',
-                enabled: !auth.isLoading,
-                onTap: () => _signOut(context, ref),
+                label: _signingOut ? '로그아웃 중...' : '로그아웃',
+                trailingText: _signingOut ? '처리 중' : null,
+                enabled: canAct,
+                onTap: _signOut,
               ),
               SettingsRow(
-                label: '모든 기기에서 로그아웃',
-                enabled: !auth.isLoading,
-                onTap: () => _signOutAll(context, ref),
+                label: _signingOutAll ? '모든 기기에서 로그아웃 중...' : '모든 기기에서 로그아웃',
+                trailingText: _signingOutAll ? '처리 중' : null,
+                enabled: canAct,
+                onTap: _signOutAll,
               ),
             ],
           ),
-          const SettingsSection(
-            title: '표시',
-            children: [_TranslateAllRow(), _LocaleRow()],
-          ),
+          const SettingsSection(title: '표시', children: [_LocaleRow()]),
           const SettingsSection(
             title: '알림',
             children: [_PushNotificationRow()],
@@ -90,9 +98,9 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.xl),
           Center(
             child: TextButton(
-              onPressed: auth.isLoading
-                  ? null
-                  : () => confirmAccountDeletion(context, ref),
+              onPressed: canAct
+                  ? () => confirmAccountDeletion(context, ref)
+                  : null,
               child: Text(
                 '계정 삭제',
                 style: Theme.of(context).textTheme.bodyMedium
@@ -106,43 +114,72 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   /// API-AUTH-005. 서버 세션을 모두 끊은 뒤 이 기기도 로그아웃한다.
-  Future<void> _signOutAll(BuildContext context, WidgetRef ref) async {
+  Future<void> _signOutAll() async {
+    if (_signingOut || _signingOutAll) return;
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _signingOutAll = true);
     try {
       await ref.read(activityRepositoryProvider).logoutAllDevices();
-      await ref.read(authControllerProvider.notifier).signOut();
+      final result = await ref
+          .read(authControllerProvider.notifier)
+          .signOut(serverSessionAlreadyEnded: true);
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              result.googleSessionEnded
+                  ? '모든 기기에서 로그아웃했어요.'
+                  : '모든 기기에서 로그아웃했어요. Google 연결 종료는 확인하지 못했어요.',
+            ),
+          ),
+        );
+      }
+    } on AuthFailure catch (error) {
+      if (messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } on ActivityFailure catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(error.message)));
-    } on Object catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('$error')));
+      if (messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } on Object {
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('로그아웃하지 못했어요. 다시 시도해 주세요.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _signingOutAll = false);
     }
   }
 
-  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+  Future<void> _signOut() async {
+    if (_signingOut || _signingOutAll) return;
     final messenger = ScaffoldMessenger.of(context);
+    setState(() => _signingOut = true);
     try {
-      await ref.read(authControllerProvider.notifier).signOut();
-    } on Object catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text('$error')));
+      final result = await ref.read(authControllerProvider.notifier).signOut();
+      if (messenger.mounted) {
+        final message = !result.serverSessionEnded
+            ? '이 기기에서 로그아웃했어요. 서버 세션 종료는 확인하지 못했어요.'
+            : !result.googleSessionEnded
+            ? '앱에서 로그아웃했어요. Google 연결 종료는 확인하지 못했어요.'
+            : '로그아웃했어요.';
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    } on AuthFailure catch (error) {
+      if (messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } on Object {
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('로그아웃하지 못했어요. 다시 시도해 주세요.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _signingOut = false);
     }
-  }
-}
-
-/// 원문 대신 번역문을 보여줄지. 서버에 필드가 없어 기기에만 남는다.
-class _TranslateAllRow extends ConsumerWidget {
-  const _TranslateAllRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(translateAllProvider);
-    return SettingsSwitchRow(
-      label: '전체 번역',
-      description: '사용자 게시글과 댓글을 선택한 언어로 표시',
-      value: enabled.value ?? false,
-      onChanged: enabled.isLoading
-          ? null
-          : (value) => ref.read(translateAllProvider.notifier).set(value),
-    );
   }
 }
 

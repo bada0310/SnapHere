@@ -93,6 +93,17 @@ class AuthSession {
   }
 }
 
+/// 로컬 세션은 삭제됐으며 외부 연결 종료 여부는 별도로 확인한다.
+class SignOutResult {
+  const SignOutResult({
+    this.serverSessionEnded = true,
+    this.googleSessionEnded = true,
+  });
+
+  final bool serverSessionEnded;
+  final bool googleSessionEnded;
+}
+
 class ConsentRecord {
   const ConsentRecord({
     required this.termsVersion,

@@ -46,34 +46,8 @@ class OnboardingScreen extends StatelessWidget {
                     ),
                     const Spacer(),
                     AuthPrimaryButton(
-                      label: '시작하기',
+                      label: '로그인 또는 둘러보기',
                       onPressed: () => context.go('/login'),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          '이미 계정이 있으신가요? ',
-                          style: TextStyle(
-                            color: AuthColors.textSecondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        GestureDetector(
-                          onTap: () => context.go('/login'),
-                          child: const Text(
-                            '로그인',
-                            style: TextStyle(
-                              color: Color(0xFF43C3DF),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),

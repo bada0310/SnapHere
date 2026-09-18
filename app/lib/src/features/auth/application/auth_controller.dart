@@ -37,6 +37,7 @@ final authControllerProvider =
 class AuthController extends AsyncNotifier<AuthSession?> {
   AuthRepository get _repository => ref.read(authRepositoryProvider);
   SessionStore get _store => ref.read(sessionStoreProvider);
+  Future<SignOutResult>? _signOutOperation;
 
   @override
   Future<AuthSession?> build() async {
@@ -114,14 +115,53 @@ class AuthController extends AsyncNotifier<AuthSession?> {
     }
   }
 
-  Future<void> signOut() async {
-    final accessToken = state.value?.accessToken;
-    if (accessToken != null) {
-      await _repository.signOut(accessToken);
+  Future<SignOutResult> signOut({bool serverSessionAlreadyEnded = false}) {
+    return _signOutOperation ??= _performSignOut(
+      serverSessionAlreadyEnded: serverSessionAlreadyEnded,
+    ).whenComplete(() => _signOutOperation = null);
+  }
+
+  Future<SignOutResult> _performSignOut({
+    required bool serverSessionAlreadyEnded,
+  }) async {
+    final current = state.value;
+    final accessToken = current?.accessToken;
+    final repository = _repository;
+    final identity = ref.read(googleIdentityClientProvider);
+    try {
+      await _store.clear();
+    } on Object catch (_, stackTrace) {
+      Error.throwWithStackTrace(
+        const AuthFailure('기기에 저장된 로그인 정보를 지우지 못했어요. 다시 시도해 주세요.'),
+        stackTrace,
+      );
     }
-    await ref.read(googleIdentityClientProvider).signOut();
-    await _store.clear();
+
+    // 한 서비스의 실패가 다른 서비스나 로컬 로그아웃을 막지 않도록 한다.
+    final ended = await Future.wait([
+      if (accessToken == null || serverSessionAlreadyEnded)
+        Future.value(true)
+      else
+        _tryEndSession(() => repository.signOut(accessToken)),
+      if (current?.isAuthenticated == true)
+        _tryEndSession(identity.signOut)
+      else
+        Future.value(true),
+    ]);
     state = const AsyncData(null);
+    return SignOutResult(
+      serverSessionEnded: ended[0],
+      googleSessionEnded: ended[1],
+    );
+  }
+
+  Future<bool> _tryEndSession(Future<void> Function() endSession) async {
+    try {
+      await endSession().timeout(const Duration(seconds: 5));
+      return true;
+    } on Object {
+      return false;
+    }
   }
 
   Future<void> deleteAccount({required String contentAction}) async {

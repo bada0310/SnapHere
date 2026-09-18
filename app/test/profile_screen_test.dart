@@ -14,8 +14,6 @@ import 'package:snap_here/src/features/profile/domain/profile_models.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
 
 class ReadyAuth extends AuthController {
-  int signOutCallCount = 0;
-
   @override
   Future<AuthSession?> build() async => const AuthSession.authenticated(
     accessToken: 'test',
@@ -27,11 +25,6 @@ class ReadyAuth extends AuthController {
       needsProfileSetup: false,
     ),
   );
-
-  @override
-  Future<void> signOut() async {
-    signOutCallCount++;
-  }
 }
 
 class ProfileStub extends ApiProfileRepository {
@@ -123,26 +116,10 @@ void main() {
     expect(find.text('1,342 팔로워'), findsOneWidget);
     expect(tester.getSize(find.byType(ProfileAvatar)), const Size(64, 64));
     expect(find.text('아직 게시글이 없어요'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, '로그아웃'), findsOneWidget);
+    expect(find.text('로그아웃'), findsNothing);
     await tester.tap(find.text('첫 사진 올리기'));
     await tester.pumpAndSettle();
     expect(find.text('upload-destination'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  testWidgets('own profile logout delegates to the auth controller', (
-    tester,
-  ) async {
-    await mount(tester);
-    final context = tester.element(find.byType(ProfileScreen));
-    final container = ProviderScope.containerOf(context);
-    final controller =
-        container.read(authControllerProvider.notifier) as ReadyAuth;
-
-    await tester.tap(find.widgetWithText(OutlinedButton, '로그아웃'));
-    await tester.pump();
-
-    expect(controller.signOutCallCount, 1);
     expect(tester.takeException(), isNull);
   });
 
@@ -151,7 +128,7 @@ void main() {
     await tester.tap(find.text('1,342 팔로워'));
     await tester.pumpAndSettle();
     expect(find.text('followers-destination'), findsOneWidget);
-    GoRouter.of(tester.element(find.text('followers-destination'))).pop();
+    GoRouter.of(tester.element(find.text('followers-destination'))).go('/');
     await tester.pumpAndSettle();
     await tester.tap(find.text('수집한 뱃지'));
     await tester.pumpAndSettle();

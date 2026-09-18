@@ -7,6 +7,7 @@ import 'package:snap_here/src/core/ui/design_icon.dart';
 import 'package:snap_here/src/core/ui/state_views.dart';
 import 'package:snap_here/src/features/map/application/map_providers.dart';
 import 'package:snap_here/src/features/map/domain/map_models.dart';
+import 'package:snap_here/src/features/map/presentation/photo_marker_layer.dart';
 import 'package:snap_here/src/features/map/presentation/snap_map.dart';
 
 /// 지도 탐색 (MAP-002~004, MAP-009~014).
@@ -24,23 +25,33 @@ class MapScreen extends ConsumerStatefulWidget {
 class _MapScreenState extends ConsumerState<MapScreen> {
   GoogleMapController? _controller;
   var _zoom = koreaCamera.zoom;
+  int _viewportGeneration = 0;
 
   Future<void> _syncViewport() async {
     final controller = _controller;
     if (controller == null) return;
-    final region = await controller.getVisibleRegion();
-    if (!mounted) return;
-    ref
-        .read(mapViewportProvider.notifier)
-        .update(
-          MapViewport(
-            west: region.southwest.longitude,
-            south: region.southwest.latitude,
-            east: region.northeast.longitude,
-            north: region.northeast.latitude,
-            zoom: _zoom.round(),
-          ),
-        );
+    final generation = ++_viewportGeneration;
+    try {
+      final region = await controller.getVisibleRegion();
+      if (!mounted || generation != _viewportGeneration) return;
+      if (region.southwest.longitude >= region.northeast.longitude ||
+          region.southwest.latitude >= region.northeast.latitude) {
+        return;
+      }
+      ref
+          .read(mapViewportProvider.notifier)
+          .update(
+            MapViewport(
+              west: region.southwest.longitude,
+              south: region.southwest.latitude,
+              east: region.northeast.longitude,
+              north: region.northeast.latitude,
+              zoom: _zoom.floor(),
+            ),
+          );
+    } on Object {
+      // 생성·종료 중의 플랫폼 범위 오류는 다음 idle에서 다시 동기화한다.
+    }
   }
 
   Future<void> _openCell(String cellKey) async {
@@ -63,22 +74,17 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Set<Marker> _markers(HeatmapResult? heatmap, List<PhotoMarker> photos) {
     final markers = <Marker>{};
     for (final cell in heatmap?.cells ?? const <HeatmapCell>[]) {
+      if (photos.any(
+        (photo) => photo.cellKey == cell.cellKey && photo.candidates.isNotEmpty,
+      )) {
+        continue;
+      }
       markers.add(
         Marker(
           markerId: MarkerId('cell_${cell.cellKey}'),
           position: LatLng(cell.lat, cell.lng),
           infoWindow: InfoWindow(title: '사진 ${cell.postCount}장'),
           onTap: () => _openCell(cell.cellKey),
-        ),
-      );
-    }
-    for (final photo in photos) {
-      if (photo.postId == null) continue;
-      markers.add(
-        Marker(
-          markerId: MarkerId('photo_${photo.cellKey}'),
-          position: LatLng(photo.lat, photo.lng),
-          onTap: () => context.push('/photos/${photo.postId}'),
         ),
       );
     }
@@ -97,16 +103,29 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
       body: Stack(
         children: [
-          SnapMap(
-            markers: _markers(heatmap.value, photos.value ?? const []),
-            onCreated: (controller) {
-              _controller = controller;
-              _syncViewport();
-            },
-            onCameraMove: (position) => _zoom = position.zoom,
-            onCameraIdle: _syncViewport,
+          PhotoMarkerLayer(
+            photos: photos.value ?? const [],
+            zoom: _zoom.floor(),
+            builder: (photoMarkers) => SnapMap(
+              markers: {
+                ..._markers(heatmap.value, photos.value ?? const []),
+                ...photoMarkers,
+              },
+              onCreated: (controller) {
+                _controller = controller;
+                _syncViewport();
+              },
+              onCameraMove: (position) {
+                _viewportGeneration++;
+                final crossedRotationZoom =
+                    (_zoom < 14) != (position.zoom < 14);
+                _zoom = position.zoom;
+                if (crossedRotationZoom) setState(() {});
+              },
+              onCameraIdle: _syncViewport,
+            ),
           ),
-          if (heatmap.isLoading)
+          if (heatmap.isLoading || photos.isLoading)
             const Align(
               alignment: Alignment.topCenter,
               child: Padding(
@@ -117,7 +136,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 ),
               ),
             ),
-          if (heatmap.hasError)
+          if (heatmap.hasError || photos.hasError)
             Align(
               alignment: Alignment.bottomCenter,
               child: Padding(
@@ -129,7 +148,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: LoadErrorView(
                       title: '지도를 불러올 수 없어요',
-                      onRetry: () => ref.invalidate(heatmapProvider),
+                      onRetry: () {
+                        ref.invalidate(heatmapProvider);
+                        ref.invalidate(photoMarkersProvider);
+                        final viewport = ref.read(mapViewportProvider);
+                        if (viewport != null) {
+                          ref.invalidate(
+                            viewportPhotoMarkersProvider(viewport),
+                          );
+                        }
+                      },
                     ),
                   ),
                 ),

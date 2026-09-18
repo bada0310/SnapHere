@@ -32,5 +32,11 @@ final heatmapProvider = FutureProvider<HeatmapResult?>((ref) async {
 final photoMarkersProvider = FutureProvider<List<PhotoMarker>>((ref) async {
   final viewport = ref.watch(mapViewportProvider);
   if (viewport == null) return const [];
-  return ref.watch(mapRepositoryProvider).fetchPhotoMarkers(viewport);
+  return ref.watch(viewportPhotoMarkersProvider(viewport).future);
 });
+
+/// 홈과 별도 지도 화면이 각자의 카메라 범위로 조회한다.
+final viewportPhotoMarkersProvider = FutureProvider.autoDispose
+    .family<List<PhotoMarker>, MapViewport>((ref, viewport) {
+      return ref.watch(mapRepositoryProvider).fetchPhotoMarkers(viewport);
+    });

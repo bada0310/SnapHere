@@ -12,8 +12,10 @@ Figma `Wireframe_v3`의 `07 Shared Detail`(게시글 상세 · 장소 상세 · 
 ## 1. 알림 — 컨트롤러 전체 부재 (P0)
 
 명세 `API-NTF-001~004`와 ERD `notifications` 테이블은 있는데 백엔드에
-`NotificationController`가 없다. 앱은 지금 `USE_FAKE_NOTIFICATIONS=true`로
-목 데이터를 그린다 (`app/lib/src/features/notification/application/notification_providers.dart`).
+`NotificationController`가 없다. 샘플 알림은 제거했으며 앱의 기본 알림 목록은
+빈 상태, 안읽은 수는 0이다. 서버가 준비되면 `ENABLE_NOTIFICATIONS_API=true`로
+빌드해 기존 API 연결을 사용한다
+(`app/lib/src/features/notification/application/notification_providers.dart`).
 
 | API ID | Method | Path | 응답 |
 |---|---|---|---|
@@ -115,13 +117,14 @@ Figma `07_장소_상세`가 요구하는데 `PlaceDtos.PlaceDetail`에 없는 �
 
 ### 5-1. 전체 번역 — `translations`가 항상 null (P1)
 
-`설정 > 표시 > 전체 번역` 스위치와 언어 선택(`ko-KR · en-US · zh-CN · ja-JP`)을
-붙였다. 언어는 `PATCH /me`의 `locale`로 저장된다.
+언어 선택(`ko-KR · en-US · zh-CN · ja-JP`)은 `PATCH /me`의 `locale`로 저장된다.
+실제 번역에 연결되지 않은 `설정 > 표시 > 전체 번역` 스위치는 제거했다.
 
 다만 `PostDetailResponse.translations`가 `Map<String, Object?>` 타입에
-`of(...)`에서 `null`로 고정돼 있어서, 스위치를 켜도 보여줄 번역문이 없다.
-원문 언어(`originalLanguageCode`)는 이미 오고 있으니 번역 파이프라인이 붙으면
-`translations`에 `{ "en-US": {...} }` 형태로 채워주면 화면은 그대로 동작한다 (SYS-010).
+`of(...)`에서 `null`로 고정돼 있어 보여줄 번역문이 없다.
+원문 언어(`originalLanguageCode`)는 이미 오지만 자동 번역은 후속 확장이다.
+번역 파이프라인과 `translations` 응답, 앱의 번역문 표시를 함께 연결한 뒤
+설정을 제공해야 한다 (SYS-010).
 
 ### 5-2. 알림 설정 — 요청 없음 (해결됨)
 
@@ -152,5 +155,5 @@ Figma `07_장소_상세`가 요구하는데 `PlaceDtos.PlaceDetail`에 없는 �
 | 게시글 상세 | `GET /posts/{id}` · `PUT`·`DELETE /posts/{id}/like` · `PUT`·`DELETE /posts/{id}/bookmark` · `POST /posts/{id}/reports` · `DELETE /posts/{id}` |
 | 댓글 | `GET`·`POST /posts/{id}/comments` · `POST /comments/{id}/replies` · `PATCH`·`DELETE /comments/{id}` |
 | 장소 상세 | `GET /places/{id}` · `GET /places/{id}/posts` · `PUT`·`DELETE /places/{id}/bookmark` |
-| 알림 | `GET /notifications` · `GET /notifications/unread-count` · `PATCH /notifications/{id}/read` · `POST /notifications/read-all` |
+| 알림 (`ENABLE_NOTIFICATIONS_API=true` 빌드) | `GET /notifications` · `GET /notifications/unread-count` · `PATCH /notifications/{id}/read` · `POST /notifications/read-all` |
 | 설정 | `GET /me` · `PATCH /me` (locale) · `PATCH /me/notification-preferences` · `POST /me/deletion` |

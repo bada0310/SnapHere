@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:snap_here/src/core/ui/relative_time.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snap_here/src/app/router/shell_navigation.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/paged_sliver.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
@@ -164,8 +165,10 @@ class MapPostCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: InkWell(
-                          onTap: () =>
-                              context.push('/users/${post.author.userId}'),
+                          onTap: () => openShellRoute(
+                            context,
+                            '/users/${post.author.userId}',
+                          ),
                           child: Row(
                             children: [
                               ProfileAvatar(
