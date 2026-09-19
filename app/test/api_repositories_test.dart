@@ -42,7 +42,7 @@ void main() {
             },
           });
         }
-        if (request.url.path.endsWith('/posts/1')) {
+        if (request.url.path.endsWith('/posts/pst_1')) {
           return _json({
             'data': {'content': '경복궁의 가을\n정말 아름다웠어요.'},
           });
@@ -132,11 +132,11 @@ void main() {
     expect(tags, ['서울']);
     expect(preview?.tier, 'HIGH');
     expect(requests.first.url.queryParameters, {
-      'placeId': '42',
+      'placeId': '146',
       'eventId': '7',
     });
     final previewBody = jsonDecode(requests.last.body) as Map<String, dynamic>;
-    expect(previewBody['placeId'], 42);
+    expect(previewBody['placeId'], 146);
     expect(previewBody['eventId'], 7);
   });
 }

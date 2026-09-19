@@ -219,13 +219,17 @@ class DeviceUploadRepository implements UploadRepository {
         throw const UploadFailure(UploadFailureReason.placeNotFound);
       }
       final photos = await Future.wait(draft.photos.map(_resolveOriginal));
+      final primary = photos.firstWhere(
+        (photo) => photo.id == draft.primaryPhoto.id,
+      );
+      if (primary.source == UploadPhotoSource.camera &&
+          primary.takenAt == null) {
+        throw const UploadFailure(UploadFailureReason.invalidTakenAt);
+      }
       final files = await Future.wait(photos.map(_fileInfo));
       stage = _UploadStage.preparation;
       final uploadTargets = await _issueUploadTargets(files, token);
       _validateUploadTargets(uploadTargets, files.length);
-      final primary = photos.firstWhere(
-        (photo) => photo.id == draft.primaryPhoto.id,
-      );
       final body = _createPostBody(
         draft,
         photos,
@@ -341,7 +345,7 @@ class DeviceUploadRepository implements UploadRepository {
     'tagNames': draft.requestTagNames,
     'source': primary.source == UploadPhotoSource.camera ? 'CAMERA' : 'ALBUM',
     if (primary.source == UploadPhotoSource.camera)
-      'takenAt': DateTime.now().toUtc().toIso8601String(),
+      'takenAt': primary.takenAt!.toUtc().toIso8601String(),
     if (primary.latitude != null) 'lat': primary.latitude,
     if (primary.longitude != null) 'lng': primary.longitude,
   };

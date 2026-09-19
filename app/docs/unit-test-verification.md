@@ -75,7 +75,7 @@ flutter test  →  130 passed, 1 failed
 단위·위젯 테스트는 HTTP를 목(mock)으로 대체하므로 **실제 네트워크·백엔드·S3 연동은 검증하지 않는다.**
 아래 항목은 실제 백엔드 구동 + 실기기에서 별도 확인이 필요하다.
 
-- 실제 API 호출 성공 여부 (앱 기본 `API_BASE_URL`은 `http://localhost:8080`, 배포 시 `--dart-define=API_BASE_URL=...` 필요)
+- 실제 API 호출 성공 여부 (앱 기본 `API_BASE_URL`은 `https://snaphere.duckdns.org`; 로컬 서버 테스트 시 `--dart-define=API_BASE_URL=...` 지정)
 - 이미지의 실제 S3 업로드 (백엔드 `MEDIA_PROVIDER` 기본값이 `stub` → 실제 업로드는 `MEDIA_PROVIDER=s3` + 버킷/자격증명 설정 시에만 동작)
 - Google Maps · Google OAuth 실제 키 동작
 - 카메라·위치·사진 권한의 실기기 동작

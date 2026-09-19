@@ -18,6 +18,27 @@ class _FailedIdentity extends FakeGoogleIdentityClient {
       throw AuthFailure('인증 실패', isCancellation: cancelled);
 }
 
+class _UnexpectedIdentity extends FakeGoogleIdentityClient {
+  const _UnexpectedIdentity();
+
+  @override
+  Future<GoogleIdentityCredential> signIn() async =>
+      throw StateError('private identity detail');
+}
+
+class _UnexpectedRepository extends FakeAuthRepository {
+  @override
+  Future<AuthSession> exchangeGoogleCredential(
+    GoogleIdentityCredential credential,
+  ) async => throw StateError('private server detail');
+}
+
+class _UnexpectedStore extends MemorySessionStore {
+  @override
+  Future<void> write(AuthSession session) async =>
+      throw StateError('private storage detail');
+}
+
 const _activeSession = AuthSession.authenticated(
   accessToken: 'test-access',
   refreshToken: 'test-refresh',
@@ -290,6 +311,62 @@ void main() {
       },
     );
   }
+  for (final scenario in [
+    (
+      identity: true,
+      exchange: false,
+      storage: false,
+      message: 'Google 인증을 완료하지 못했어요',
+    ),
+    (
+      identity: false,
+      exchange: true,
+      storage: false,
+      message: '로그인 서버의 응답을 처리하지 못했어요',
+    ),
+    (
+      identity: false,
+      exchange: false,
+      storage: true,
+      message: '기기에 로그인 정보를 저장하지 못했어요',
+    ),
+  ]) {
+    test(
+      'unexpected sign-in failure identifies the stage without private details: ${scenario.message}',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            authRepositoryProvider.overrideWithValue(
+              scenario.exchange
+                  ? _UnexpectedRepository()
+                  : FakeAuthRepository(),
+            ),
+            googleIdentityClientProvider.overrideWithValue(
+              scenario.identity
+                  ? const _UnexpectedIdentity()
+                  : const FakeGoogleIdentityClient(),
+            ),
+            sessionStoreProvider.overrideWithValue(
+              scenario.storage ? _UnexpectedStore() : MemorySessionStore(),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(authControllerProvider.future);
+
+        final completed = await container
+            .read(authControllerProvider.notifier)
+            .signInWithGoogle();
+
+        expect(completed, isFalse);
+        final error = container.read(authControllerProvider).error;
+        expect(error, isA<AuthFailure>());
+        expect(error.toString(), contains(scenario.message));
+        expect(error.toString(), isNot(contains('private')));
+      },
+    );
+  }
+
   test(
     'Google sign-in and profile completion persist an active session',
     () async {

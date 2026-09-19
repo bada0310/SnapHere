@@ -24,8 +24,10 @@ Google Play 업로드 키 정보를 입력합니다. 실제 `key.properties`와 
 Git에 포함되지 않습니다.
 
 ```bash
-flutter build appbundle --release --dart-define=API_BASE_URL=https://api.example.com
+flutter build appbundle --release
 ```
+
+기본 API 주소는 `https://snaphere.duckdns.org`이며 앱에서 `/api/v1`을 붙입니다. 다른 서버로 빌드할 때만 `--dart-define=API_BASE_URL=https://...`를 지정합니다.
 
 키 설정이 없으면 로컬 릴리스 검증을 위해 debug 키로 서명되며, 생성된 AAB는
 스토어에 제출하면 안 됩니다.

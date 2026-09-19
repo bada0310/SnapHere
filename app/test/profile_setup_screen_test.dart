@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snap_here/src/app/theme/app_theme.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
-import 'package:snap_here/src/features/auth/data/fake_auth_repository.dart';
+import 'package:snap_here/src/features/auth/data/asset_legal_document_repository.dart';
 import 'package:snap_here/src/features/auth/data/session_store.dart';
 import 'package:snap_here/src/features/auth/presentation/profile_setup_screen.dart';
 
@@ -94,7 +94,7 @@ Future<void> _pumpProfileSetup(
       overrides: [
         sessionStoreProvider.overrideWithValue(MemorySessionStore()),
         legalDocumentRepositoryProvider.overrideWithValue(
-          FakeLegalDocumentRepository(),
+          AssetLegalDocumentRepository(),
         ),
       ],
       child: MaterialApp(

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as image;
 import 'package:snap_here/src/app/theme/app_tokens.dart';
@@ -389,6 +390,15 @@ class _GalleryStep extends ConsumerWidget {
       _showSelectionMessage(context, _photoLimitMessage);
       return;
     }
+    try {
+      if (await Geolocator.isLocationServiceEnabled() &&
+          await Geolocator.checkPermission() == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
+    } catch (_) {
+      // 위치를 얻지 못해도 촬영은 허용하고 등록 전에 등급 영향을 안내한다.
+    }
+    if (!context.mounted) return;
     final photo = await Navigator.of(context).push<UploadPhoto>(
       MaterialPageRoute(builder: (_) => const _CameraPreviewScreen()),
     );
@@ -552,6 +562,15 @@ class _FormStep extends ConsumerWidget {
             children: [
               if (state.eventContext case final eventContext?) ...[
                 _EventUploadBanner(context: eventContext),
+                const SizedBox(height: AppSpacing.lg),
+              ],
+              if (state.primaryPhoto?.source == UploadPhotoSource.camera &&
+                  !state.primaryPhoto!.hasLocationMetadata) ...[
+                const Text(
+                  '촬영 위치를 확인하지 못했어요. 이 사진은 낮음 등급으로 등록됩니다. '
+                  '높음 등급을 원하면 위치 서비스를 켜고 위치 권한을 허용한 뒤 다시 촬영해 주세요.',
+                  key: Key('camera-location-warning'),
+                ),
                 const SizedBox(height: AppSpacing.lg),
               ],
               SizedBox(
@@ -1302,7 +1321,10 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
     }
     setState(() => _takingPicture = true);
     try {
+      final coordinates = await _captureCoordinates();
+      if (!mounted || !controller.value.isInitialized) return;
       final file = await controller.takePicture();
+      final takenAt = DateTime.now();
       final croppedPath = await compute(_cropCapturedPhoto, {
         'path': file.path,
         'ratio': _viewRatio.portraitAspectRatio,
@@ -1313,6 +1335,9 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
           id: 'camera-${DateTime.now().microsecondsSinceEpoch}',
           filePath: croppedPath,
           source: UploadPhotoSource.camera,
+          latitude: coordinates?.latitude,
+          longitude: coordinates?.longitude,
+          takenAt: takenAt,
           aspectRatio: _viewRatio.portraitAspectRatio,
         ),
       );
@@ -1322,6 +1347,26 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
       }
     } finally {
       if (mounted) setState(() => _takingPicture = false);
+    }
+  }
+
+  Future<({double latitude, double longitude})?> _captureCoordinates() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
+      final permission = await Geolocator.checkPermission();
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        return null;
+      }
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
+      );
+      return (latitude: position.latitude, longitude: position.longitude);
+    } catch (_) {
+      return null;
     }
   }
 

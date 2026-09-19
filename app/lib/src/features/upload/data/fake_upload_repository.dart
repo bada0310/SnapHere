@@ -34,31 +34,13 @@ class FakeUploadRepository implements UploadRepository {
   @override
   Future<List<UploadPhoto>> fetchGallery() async {
     await Future<void>.delayed(_latency);
-    return List.generate(
-      12,
-      (index) => UploadPhoto(
-        id: 'photo-${index + 1}',
-        assetPath:
-            'assets/images/upload/upload_${(index + 1).toString().padLeft(2, '0')}.png',
-        suggestedTitle: index < 3 ? '전주 한옥마을의 봄' : null,
-        latitude: index < 3 ? 35.815 : null,
-        longitude: index < 3 ? 127.153 : null,
-      ),
-    );
+    return const [];
   }
 
   @override
   Future<List<UploadPhoto>> fetchDraftGallery() async {
     await Future<void>.delayed(_latency);
-    return List.generate(
-      3,
-      (index) => UploadPhoto(
-        id: 'draft-${index + 1}',
-        assetPath:
-            'assets/images/upload/upload_${(index + 10).toString().padLeft(2, '0')}.png',
-        suggestedTitle: '작성 중인 여행 기록',
-      ),
-    );
+    return const [];
   }
 
   @override

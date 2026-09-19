@@ -31,5 +31,7 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-    - assets/images/upload/
     - assets/images/navigation/
+    - assets/legal/privacy-policy.ko.md
+    - assets/legal/privacy-consent.ko.md
+    - assets/legal/terms-of-service.ko.md

@@ -15,12 +15,14 @@ class _StubUploadRepository implements UploadRepository {
   _StubUploadRepository({
     this.hasMetadata = true,
     this.emptyGallery = false,
+    this.cameraPhoto = false,
     this.submitFailure,
     this.pendingSubmit,
   });
 
   final bool hasMetadata;
   final bool emptyGallery;
+  final bool cameraPhoto;
   Object? submitFailure;
   final Completer<UploadResult>? pendingSubmit;
   int submitCount = 0;
@@ -39,26 +41,20 @@ class _StubUploadRepository implements UploadRepository {
       : [
           UploadPhoto(
             id: 'photo-1',
-            assetPath: 'assets/images/upload/upload_01.png',
+            source: cameraPhoto
+                ? UploadPhotoSource.camera
+                : UploadPhotoSource.deviceLibrary,
             suggestedTitle: hasMetadata ? '전주 한옥마을의 봄' : null,
-            latitude: hasMetadata ? 35.815 : null,
-            longitude: hasMetadata ? 127.153 : null,
+            latitude: hasMetadata && !cameraPhoto ? 35.815 : null,
+            longitude: hasMetadata && !cameraPhoto ? 127.153 : null,
+            takenAt: cameraPhoto ? DateTime(2026, 9, 18) : null,
           ),
-          const UploadPhoto(
-            id: 'photo-2',
-            assetPath: 'assets/images/upload/upload_02.png',
-          ),
+          const UploadPhoto(id: 'photo-2'),
         ];
 
   @override
-  Future<List<UploadPhoto>> fetchDraftGallery() async => emptyGallery
-      ? const []
-      : const [
-          UploadPhoto(
-            id: 'draft-1',
-            assetPath: 'assets/images/upload/upload_03.png',
-          ),
-        ];
+  Future<List<UploadPhoto>> fetchDraftGallery() async =>
+      emptyGallery ? const [] : const [UploadPhoto(id: 'draft-1')];
 
   @override
   Future<void> openMediaSettings() async {}
@@ -542,6 +538,17 @@ void main() {
           .onPressed,
       isNull,
     );
+  });
+
+  testWidgets('촬영 좌표가 없으면 게시 전에 낮음 등급 이유를 알린다', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(412, 893));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(_wrap(_StubUploadRepository(cameraPhoto: true)));
+    await tester.pumpAndSettle();
+    await _goToForm(tester);
+
+    expect(find.byKey(const Key('camera-location-warning')), findsOneWidget);
+    expect(find.textContaining('낮음 등급으로 등록됩니다'), findsOneWidget);
   });
 
   testWidgets('시스템 뒤로가기는 작성 단계부터 한 단계씩 이동한다', (tester) async {

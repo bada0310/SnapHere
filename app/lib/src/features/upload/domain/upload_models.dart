@@ -20,6 +20,7 @@ class UploadPhoto {
     this.suggestedTitle,
     this.latitude,
     this.longitude,
+    this.takenAt,
     this.aspectRatio,
   });
 
@@ -31,6 +32,7 @@ class UploadPhoto {
   final String? suggestedTitle;
   final double? latitude;
   final double? longitude;
+  final DateTime? takenAt;
   final double? aspectRatio;
 
   bool get hasLocationMetadata => latitude != null && longitude != null;
@@ -44,6 +46,7 @@ class UploadPhoto {
     suggestedTitle: suggestedTitle,
     latitude: latitude,
     longitude: longitude,
+    takenAt: takenAt,
     aspectRatio: aspectRatio,
   );
 }

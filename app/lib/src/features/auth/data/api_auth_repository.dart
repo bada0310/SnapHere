@@ -26,18 +26,40 @@ class ApiAuthRepository implements AuthRepository {
   Future<AuthSession> exchangeGoogleCredential(
     GoogleIdentityCredential credential,
   ) async {
+    var phase = 'device-id';
     try {
-      final data = jsonMap(
-        await _api.post(
-          '/auth/google',
-          body: {
-            'idToken': credential.idToken,
-            'deviceId': await _deviceId(),
-            'platform': Platform.isIOS ? 'IOS' : 'ANDROID',
-          },
-        ),
+      final deviceId = await _deviceId();
+      phase = 'http';
+      final response = await _api.post(
+        '/auth/google',
+        body: {
+          'idToken': credential.idToken,
+          'deviceId': deviceId,
+          'platform': Platform.isIOS ? 'IOS' : 'ANDROID',
+        },
       );
-      return _sessionFromAuthResult(data);
+      phase = 'response-map';
+      final data = jsonMap(response);
+      phase = 'session-map';
+      try {
+        return _sessionFromAuthResult(data);
+      } on Object {
+        final tokens = data['tokens'];
+        final user = data['user'];
+        debugPrint(
+          'SnapHereAuth responseShape '
+          'tokens=${tokens is Map} '
+          'access=${tokens is Map && tokens['accessToken'] is String} '
+          'refresh=${tokens is Map && tokens['refreshToken'] is String} '
+          'user=${user is Map} '
+          'userId=${user is Map && user['userId'] is String} '
+          'email=${user is Map && (user['email'] == null || user['email'] is String)} '
+          'nickname=${user is Map && (user['nickname'] == null || user['nickname'] is String)} '
+          'photo=${user is Map && (user['profileImageUrl'] == null || user['profileImageUrl'] is String)} '
+          'onboarding=${data['onboardingRequired'] is bool}',
+        );
+        rethrow;
+      }
     } on ApiException catch (error) {
       if (kDebugMode) {
         final code = error.code;
@@ -71,6 +93,9 @@ class ApiAuthRepository implements AuthRepository {
       throw const AuthFailure('로그인 서버에 연결할 수 없어요. 네트워크와 서버 연결을 확인해 주세요.');
     } on http.ClientException {
       throw const AuthFailure('로그인 서버에 연결할 수 없어요. 네트워크와 서버 연결을 확인해 주세요.');
+    } on Object catch (error) {
+      debugPrint('SnapHereAuth exchangePhase=$phase type=${error.runtimeType}');
+      rethrow;
     }
   }
 

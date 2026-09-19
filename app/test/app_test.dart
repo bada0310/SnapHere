@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snap_here/src/app.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
+import 'package:snap_here/src/features/auth/data/asset_legal_document_repository.dart';
 import 'package:snap_here/src/features/auth/data/fake_auth_repository.dart';
 import 'package:snap_here/src/features/auth/data/google_identity_client.dart';
 import 'package:snap_here/src/features/auth/data/session_store.dart';
@@ -96,7 +97,7 @@ void main() {
             const FakeGoogleIdentityClient(),
           ),
           legalDocumentRepositoryProvider.overrideWithValue(
-            FakeLegalDocumentRepository(),
+            AssetLegalDocumentRepository(),
           ),
           sessionStoreProvider.overrideWithValue(MemorySessionStore()),
         ],

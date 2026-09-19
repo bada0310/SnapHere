@@ -258,6 +258,57 @@ void main() {
     expect(body['eventId'], 2);
   });
 
+  test('카메라 촬영 시각과 좌표를 행사 게시글 요청에 그대로 전달한다', () async {
+    final takenAt = DateTime.parse('2026-09-18T10:20:30+09:00');
+    final photo = UploadPhoto(
+      id: 'camera-1',
+      filePath: draft.primaryPhoto.filePath,
+      source: UploadPhotoSource.camera,
+      latitude: 35.003,
+      longitude: 128.064,
+      takenAt: takenAt,
+    );
+    await repository().createPost(
+      UploadDraft(
+        photos: [photo],
+        primaryPhoto: photo,
+        title: draft.title,
+        description: draft.description,
+        place: draft.place,
+        eventId: draft.eventId,
+      ),
+    );
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['source'], 'CAMERA');
+    expect(body['takenAt'], takenAt.toUtc().toIso8601String());
+    expect(body['lat'], 35.003);
+    expect(body['lng'], 128.064);
+    expect(body['eventId'], 2);
+    expect(photo.copyWith(filePath: photo.filePath).takenAt, takenAt);
+  });
+
+  test('촬영 시각이 없는 카메라 사진은 서버 요청 전에 멈춘다', () async {
+    final photo = UploadPhoto(
+      id: 'camera-1',
+      filePath: draft.primaryPhoto.filePath,
+      source: UploadPhotoSource.camera,
+    );
+    await expectLater(
+      repository().createPost(
+        UploadDraft(
+          photos: [photo],
+          primaryPhoto: photo,
+          title: draft.title,
+          description: draft.description,
+          place: draft.place,
+          eventId: draft.eventId,
+        ),
+      ),
+      _failure(UploadFailureReason.invalidTakenAt),
+    );
+    expect(requests, isEmpty);
+  });
+
   test('장소 이름이 비어 자동 태그를 만들 수 없으면 사진 준비 전에 장소 재선택을 안내한다', () async {
     await expectLater(
       repository().createPost(

@@ -152,8 +152,7 @@ class ProfileSubmission {
 enum LegalDocumentType {
   terms('terms'),
   privacyConsent('privacy-consent'),
-  privacyPolicy('privacy-policy'),
-  marketing('marketing');
+  privacyPolicy('privacy-policy');
 
   const LegalDocumentType(this.path);
   final String path;

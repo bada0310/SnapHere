@@ -17,10 +17,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _bioController = TextEditingController();
   bool _terms = false;
   bool _privacy = false;
-  bool _marketing = false;
   String? _submissionError;
 
-  bool get _all => _terms && _privacy && _marketing;
+  bool get _all => _terms && _privacy;
 
   bool get _isNicknameValid {
     final nickname = _nicknameController.text.trim();
@@ -59,7 +58,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     setState(() {
       _terms = value;
       _privacy = value;
-      _marketing = value;
     });
   }
 
@@ -72,13 +70,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     final privacyDocument = ref.watch(
       legalDocumentProvider(LegalDocumentType.privacyConsent),
     );
-    final marketingDocument = ref.watch(
-      legalDocumentProvider(LegalDocumentType.marketing),
-    );
-    final documentsReady =
-        termsDocument.hasValue &&
-        privacyDocument.hasValue &&
-        marketingDocument.hasValue;
+    final documentsReady = termsDocument.hasValue && privacyDocument.hasValue;
     final canComplete =
         _isNicknameValid &&
         _terms &&
@@ -170,12 +162,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                       onViewDetails: () =>
                           context.push('/legal/privacy-consent'),
                     ),
-                    _ConsentRow(
-                      label: '[선택] 마케팅 정보 수신 동의',
-                      value: _marketing,
-                      onChanged: (value) => setState(() => _marketing = value),
-                      onViewDetails: () => context.push('/legal/marketing'),
-                    ),
                   ],
                 ),
               ),
@@ -203,7 +189,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                     ? () => _submit(
                         termsDocument.requireValue,
                         privacyDocument.requireValue,
-                        marketingDocument.requireValue,
                       )
                     : null,
               ),
@@ -221,11 +206,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     );
   }
 
-  Future<void> _submit(
-    LegalDocument terms,
-    LegalDocument privacy,
-    LegalDocument marketing,
-  ) {
+  Future<void> _submit(LegalDocument terms, LegalDocument privacy) {
     final bio = _bioController.text.trim();
     setState(() => _submissionError = null);
     return ref
@@ -237,8 +218,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             consents: ConsentRecord(
               termsVersion: terms.version,
               privacyVersion: privacy.version,
-              marketingVersion: _marketing ? marketing.version : null,
-              marketingAccepted: _marketing,
+              marketingVersion: null,
+              marketingAccepted: false,
               acceptedAt: DateTime.now().toUtc(),
             ),
           ),

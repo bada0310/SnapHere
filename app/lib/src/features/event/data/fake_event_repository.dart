@@ -8,7 +8,6 @@ class FakeEventRepository implements EventRepository {
     EventSummary(
       eventId: 'event-seoul-light',
       title: '서울 빛초롱 축제',
-      thumbnailUrl: 'assets/images/upload/upload_04.png',
       areaCode: 1,
       areaName: '서울',
       startDate: DateTime(2026, 9, 1),
@@ -21,7 +20,6 @@ class FakeEventRepository implements EventRepository {
     EventSummary(
       eventId: 'event-busan-sea',
       title: '부산 바다 미술제',
-      thumbnailUrl: 'assets/images/upload/upload_07.png',
       areaCode: 6,
       areaName: '부산',
       startDate: DateTime(2026, 9, 6),
@@ -34,7 +32,6 @@ class FakeEventRepository implements EventRepository {
     EventSummary(
       eventId: 'event-jeonju-culture',
       title: '전주 한옥 문화주간',
-      thumbnailUrl: 'assets/images/upload/upload_01.png',
       areaCode: 37,
       areaName: '전북',
       startDate: DateTime(2026, 9, 3),
@@ -46,7 +43,6 @@ class FakeEventRepository implements EventRepository {
     EventSummary(
       eventId: 'event-jeju-sunset',
       title: '제주 노을 사진전',
-      thumbnailUrl: 'assets/images/upload/upload_10.png',
       areaCode: 39,
       areaName: '제주',
       startDate: DateTime(2026, 9, 12),
@@ -118,24 +114,9 @@ class FakeEventRepository implements EventRepository {
   Future<List<EventPost>> fetchEventPosts(String eventId) async {
     await Future<void>.delayed(_latency);
     return const [
-      EventPost(
-        postId: 'event-post-1',
-        authorName: '여행토끼',
-        thumbnailUrl: 'assets/images/upload/upload_03.png',
-        likeCount: 82,
-      ),
-      EventPost(
-        postId: 'event-post-2',
-        authorName: 'snap_min',
-        thumbnailUrl: 'assets/images/upload/upload_06.png',
-        likeCount: 57,
-      ),
-      EventPost(
-        postId: 'event-post-3',
-        authorName: '오늘의산책',
-        thumbnailUrl: 'assets/images/upload/upload_09.png',
-        likeCount: 31,
-      ),
+      EventPost(postId: 'event-post-1', authorName: '여행토끼', likeCount: 82),
+      EventPost(postId: 'event-post-2', authorName: 'snap_min', likeCount: 57),
+      EventPost(postId: 'event-post-3', authorName: '오늘의산책', likeCount: 31),
     ];
   }
 

@@ -15,7 +15,6 @@ class _StubEventRepository implements EventRepository {
   final event = EventSummary(
     eventId: 'event-1',
     title: '서울 빛초롱 축제',
-    thumbnailUrl: 'assets/images/upload/upload_04.png',
     areaCode: 1,
     areaName: '서울',
     startDate: DateTime(2026, 9, 1),
@@ -64,12 +63,7 @@ class _StubEventRepository implements EventRepository {
 
   @override
   Future<List<EventPost>> fetchEventPosts(String eventId) async => const [
-    EventPost(
-      postId: 'post-1',
-      authorName: '여행토끼',
-      thumbnailUrl: 'assets/images/upload/upload_03.png',
-      likeCount: 82,
-    ),
+    EventPost(postId: 'post-1', authorName: '여행토끼', likeCount: 82),
   ];
 
   @override
