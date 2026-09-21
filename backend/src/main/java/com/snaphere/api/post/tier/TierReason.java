@@ -27,7 +27,10 @@ public enum TierReason {
     RECENT_WITHIN_RADIUS,
 
     /** 장소에 좌표가 없어 판정할 수 없다 → 낮음 (PLC-007) */
-    PLACE_HAS_NO_COORDINATE;
+    PLACE_HAS_NO_COORDINATE,
+
+    /** 기기가 원 좌표를 보내지 않고 수행한 자체 판정 결과다. */
+    LOCAL_VERIFICATION;
 
     public String messageKey() {
         return "tier.reason." + name().toLowerCase();

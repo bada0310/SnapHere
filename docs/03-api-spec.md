@@ -62,8 +62,8 @@
 | API ID | API 이름 | Method | Path | 인증 | 중요도 | 설명 | 요청 스키마 | 응답 스키마 | 성공 | 주요 에러 | 페이징 | 캐시·멱등 | 관련 요구사항 | 관련 테이블·비고 |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | API-PST-001 | 업로드 주소 발급 | POST | /api/v1/media/presigned-urls | Bearer | Must | 게시글 원본은 비공개 `originals/` 키로, 프로필 이미지는 `profile/` 키로 5분 Presigned URL을 발급한다. jpeg·png·heic·webp, 장당 10MB 이하. | PresignRequest | UploadUrl[] | 201 | MEDIA_COUNT_INVALID, MEDIA_TOO_LARGE, MEDIA_TYPE_UNSUPPORTED, COMMON_429 | - | URL 5분 | USER-004, PST-013~015, SYS-020 | S3, post_images<br>※ 게시글 원본은 공개 URL로 변환하지 않는다. |
-| API-PST-002 | 신뢰도 미리보기 | POST | /api/v1/posts/tier-preview | Bearer | Should | 업로드 전 장소·촬영 정보로 예상 신뢰도와 판정 이유를 계산한다. | TierPreviewRequest | TierResult | 201 | PLACE_NOT_FOUND, POST_INVALID_TAKEN_AT, COMMON_422 | - | - | PST-022~028, PST-048~049 | places, events<br>※ 최종 등급은 게시 생성 시 서버가 다시 계산 |
-| API-PST-003 | 게시글 생성 | POST | /api/v1/posts | Bearer | Must | 게시글을 만들고 `postId`와 `mediaStatus=PROCESSING`을 반환한다. 정제본 준비 전에는 공개하지 않는다. | CreatePostRequest | CreatePostResult | 201 | POST_IMAGE_REQUIRED, POST_PLACE_REQUIRED, POST_TAG_REQUIRED, POST_DAILY_LIMIT, POST_PLACE_DAILY_LIMIT, POST_DUPLICATE_IMAGE, POST_UPLOAD_SUSPENDED, COMMON_422 | - | Idempotency-Key 필수 | PST-001~006, PST-008~011, PST-016~032, EVT-016~023, VST-001~002, BDG-005~006 | posts, post_images, post_tags, visits, user_badges |
+| API-PST-002 | 신뢰도 미리보기 | 앱 내부 | - | - | Should | 앱이 대표 사진과 선택 장소 좌표로 기기 안에서 예상 신뢰도를 계산한다. 사진·기기 원 좌표와 촬영 시각을 전송하지 않는다. | - | LocalTierResult | - | - | - | PST-022~028, PST-048~049 | 서버 호출 없음 |
+| API-PST-003 | 게시글 생성 | POST | /api/v1/posts | Bearer | Must | 게시글을 만들고 `postId`와 `mediaStatus=PROCESSING`을 반환한다. 정제본 준비 전에는 공개하지 않는다. | CreatePostRequest | CreatePostResult | 201 | POST_IMAGE_REQUIRED, POST_PLACE_REQUIRED, POST_TAG_REQUIRED, POST_DAILY_LIMIT, POST_PLACE_DAILY_LIMIT, POST_DUPLICATE_IMAGE, POST_UPLOAD_SUSPENDED, COMMON_422 | - | Idempotency-Key 필수 | PST-001~006, PST-008~011, PST-016~032, EVT-016~023, VST-001~002, BDG-005~006 | `localTier`만 수신하며 사진·기기 원 좌표와 정확한 촬영 시각은 수신하지 않음 |
 | API-PST-004 | 게시글 목록 | GET | /api/v1/posts | Bearer(optional) | Must | 지역·장소·태그·기간으로 공개 게시글을 조회한다. | - | CursorPage<PostSummary> | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | cursor | - | PST-021, PST-034, SYS-018 | posts, post_images, post_tags |
 | API-PST-005 | 인기 게시글 | GET | /api/v1/posts/popular | Bearer(optional) | Must | 지도·탐색용 기간별 인기 게시글을 사전 집계(post_rankings)에서 조회한다. 커뮤니티 인기 탭은 API-CMU-001을 쓴다. | - | CursorPage<PostSummary> | 200 | COMMON_400, AUTH_REQUIRED, COMMON_500 | cursor | 집계 테이블 조회, 요청 시 계산 금지 | PST-035, CMU-008 | post_rankings, posts, post_images / ※ 지도·탐색 진입점. 커뮤니티 인기 탭과 역할 분리(B-2) |
 | API-PST-006 | 게시글 상세 | GET | /api/v1/posts/{postId} | Bearer(optional) | Must | 사진·캡션·태그·장소·작성자·신뢰도 근거를 조회한다. | - | PostDetail | 200 | POST_NOT_FOUND, POST_NOT_VISIBLE, POST_MEDIA_PROCESSING, POST_MEDIA_FAILED, COMMON_500 | - | 공개 60s; 조회수 24h 중복 제거 | PST-033, PST-042, PST-046~047, SYS-010, SYS-021 | posts, post_images, post_tags, users, places<br>※ 작성자만 처리 상태 409, 그 외에는 404 |
@@ -410,12 +410,7 @@
 
 | Method | Path | 위치 | 파라미터 | 타입 | 필수 | 제약·기본값 | 예시 | 설명 |
 |---|---|---|---|---|---|---|---|---|
-| POST | /api/v1/posts/tier-preview | body | placeId | uuid | Y | 존재하는 장소 | plc_01 | 장소 ID |
-| POST | /api/v1/posts/tier-preview | body | eventId | uuid\|null | N | 행사 업로드일 때 사용 | evt_01 | 이벤트 ID |
-| POST | /api/v1/posts/tier-preview | body | source | enum | Y | CAMERA\|ALBUM | CAMERA | 사진 출처 |
-| POST | /api/v1/posts/tier-preview | body | takenAt | datetime | N | ISO-8601; source=CAMERA이면 필수(PST-023) | 예: 2026-09-01T09:00:00+09:00 | 촬영 시각 |
-| POST | /api/v1/posts/tier-preview | body | lat | number\|null | N | EXIF 위도 | 37.5796 | 촬영 위도 |
-| POST | /api/v1/posts/tier-preview | body | lng | number\|null | N | EXIF 경도 | 126.977 | 촬영 경도 |
+| 앱 내부 | - | - | 대표 사진·선택 장소 | - | Y | 사진 위치가 200m 이내인지와 촬영 후 10분·30일 경과를 기기에서 계산 | - | 원 좌표·정확한 촬영 시각은 서버에 전송하지 않는다 |
 
 ### API-PST-003
 
@@ -432,9 +427,8 @@
 | POST | /api/v1/posts | body | images[].imageHash | string\|null | N | SHA-256 소문자 16진수 64자 | a1b2... | 중복 409 를 등록 응답 전에 내리기 위한 값. 서버가 이 시점에 원본을 내려받아 계산하면 PST-019 와 어긋난다. 비우면 검사를 건너뛰고 후처리가 실제 해시로 덮어쓴다 (PST-031, v1.1.4 추가) |
 | POST | /api/v1/posts | body | tagNames | array<string> | Y | 고정 포함 1~10개 | ['서울','드라마촬영지'] | 사용자·추천 태그 |
 | POST | /api/v1/posts | body | source | enum | Y | CAMERA\|ALBUM | ALBUM | 업로드 경로 |
-| POST | /api/v1/posts | body | takenAt | datetime\|null | N | ISO-8601; source=CAMERA이면 필수(PST-023) | 예: 2026-08-30T10:00:00+09:00 | 촬영 시각 |
-| POST | /api/v1/posts | body | lat | number\|null | N | EXIF 위도 | 37.57 | 촬영 좌표 |
-| POST | /api/v1/posts | body | lng | number\|null | N | EXIF 경도 | 126.98 | 촬영 좌표 |
+| POST | /api/v1/posts | body | localTier | enum | Y | HIGH\|MEDIUM\|LOW | MEDIUM | 기기 안에서 계산한 사진 인증 결과 |
+| POST | /api/v1/posts | body | localWithinRadius | boolean | Y | 200m 이내 여부 | true | 기기 판정 결과. 거리값·좌표는 보내지 않는다 |
 
 ### API-PST-004
 

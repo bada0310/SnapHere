@@ -1,6 +1,7 @@
 package com.snaphere.api.post.dto;
 
 import com.snaphere.api.post.tier.PhotoSource;
+import com.snaphere.api.post.tier.TrustTier;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -18,8 +19,8 @@ import java.util.List;
  * 다른 에러 코드로 거부해야 하는데(PST-017), {@code @Size} 는 전부 {@code COMMON_400} 의
  * violations 로 뭉쳐 버린다. 그래서 개수는 서비스에서 검사하고 여기서는 형식만 본다.
  *
- * <p>{@code tier}·{@code areaCode} 는 받지 않는다. 등급은 서버가 판정하고(PST-022) 지역 코드는
- * 장소에서 역산한다(PST-018) — 클라이언트가 보낸 값을 쓰면 둘 다 위조된다.
+ * <p>{@code localTier} 는 앱이 기기 안에서 사진 위치와 촬영 시각을 비교한 결과다. 원 좌표와
+ * 정확한 촬영 시각은 이 요청에 포함하지 않는다. 지역 코드는 장소에서 역산한다(PST-018).
  */
 public record CreatePostRequest(
 
@@ -48,8 +49,20 @@ public record CreatePostRequest(
         Double lat,
 
         @DecimalMin("-180") @DecimalMax("180")
-        Double lng
+        Double lng,
+
+        TrustTier localTier,
+
+        Boolean localWithinRadius
 ) {
+    /** 이전 앱·테스트의 요청 생성 호환용 생성자. 새 앱은 localTier를 보낸다. */
+    public CreatePostRequest(Long placeId, Long eventId, String content,
+                             String originalLanguageCode, List<PostImageRequest> images,
+                             List<String> tagNames, PhotoSource source,
+                             OffsetDateTime takenAt, Double lat, Double lng) {
+        this(placeId, eventId, content, originalLanguageCode, images, tagNames, source,
+                takenAt, lat, lng, null, null);
+    }
     /** 촬영 좌표는 둘 다 있거나 둘 다 없어야 한다. 하나만 오면 없는 것으로 본다. */
     public boolean hasCoordinate() {
         return lat != null && lng != null;

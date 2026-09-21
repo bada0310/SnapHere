@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/core/ui/design_icon.dart';
@@ -54,43 +53,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
-  Future<void> _openCell(String cellKey) async {
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final detail = await ref
-          .read(mapRepositoryProvider)
-          .fetchCellDetail(cellKey);
-      if (!mounted) return;
-      if (detail.postIds.isNotEmpty) {
-        context.push('/photos/${detail.postIds.first}');
-      } else if (detail.placeId != null) {
-        context.push('/places/${detail.placeId}');
-      }
-    } on MapFailure catch (error) {
-      messenger.showSnackBar(SnackBar(content: Text(error.message)));
-    }
-  }
-
-  Set<Marker> _markers(HeatmapResult? heatmap, List<PhotoMarker> photos) {
-    final markers = <Marker>{};
-    for (final cell in heatmap?.cells ?? const <HeatmapCell>[]) {
-      if (photos.any(
-        (photo) => photo.cellKey == cell.cellKey && photo.candidates.isNotEmpty,
-      )) {
-        continue;
-      }
-      markers.add(
-        Marker(
-          markerId: MarkerId('cell_${cell.cellKey}'),
-          position: LatLng(cell.lat, cell.lng),
-          infoWindow: InfoWindow(title: '사진 ${cell.postCount}장'),
-          onTap: () => _openCell(cell.cellKey),
-        ),
-      );
-    }
-    return markers;
-  }
-
   @override
   Widget build(BuildContext context) {
     final heatmap = ref.watch(heatmapProvider);
@@ -105,22 +67,15 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         children: [
           PhotoMarkerLayer(
             photos: photos.value ?? const [],
-            zoom: _zoom.floor(),
             builder: (photoMarkers) => SnapMap(
-              markers: {
-                ..._markers(heatmap.value, photos.value ?? const []),
-                ...photoMarkers,
-              },
+              markers: photoMarkers,
               onCreated: (controller) {
                 _controller = controller;
                 _syncViewport();
               },
               onCameraMove: (position) {
                 _viewportGeneration++;
-                final crossedRotationZoom =
-                    (_zoom < 14) != (position.zoom < 14);
                 _zoom = position.zoom;
-                if (crossedRotationZoom) setState(() {});
               },
               onCameraIdle: _syncViewport,
             ),

@@ -19,12 +19,16 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  ApiClient({http.Client? client, String baseUrl = defaultApiBaseUrl})
-    : _client = client ?? http.Client(),
-      _root = _normalizeRoot(baseUrl);
+  ApiClient({
+    http.Client? client,
+    String baseUrl = defaultApiBaseUrl,
+    this.timeout = const Duration(seconds: 15),
+  }) : _client = client ?? http.Client(),
+       _root = _normalizeRoot(baseUrl);
 
   final http.Client _client;
   final String _root;
+  final Duration timeout;
 
   Future<Object?> get(
     String path, {
@@ -60,10 +64,10 @@ class ApiClient {
       request.headers['content-type'] = 'application/json';
       request.body = jsonEncode(body);
     }
-    final streamed = await _client
+    final response = await _client
         .send(request)
-        .timeout(const Duration(seconds: 15));
-    final response = await http.Response.fromStream(streamed);
+        .then(http.Response.fromStream)
+        .timeout(timeout);
     if (response.bodyBytes.isEmpty) {
       if (response.statusCode >= 200 && response.statusCode < 300) return null;
       throw ApiException(

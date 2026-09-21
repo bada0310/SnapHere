@@ -7,7 +7,6 @@ import com.snaphere.api.post.dto.CreatePostRequest;
 import com.snaphere.api.post.dto.PostImageRequest;
 import com.snaphere.api.post.entity.PostImageEntity;
 import com.snaphere.api.post.entity.PostTagEntity;
-import com.snaphere.api.post.tier.PhotoSource;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -119,14 +118,10 @@ public class PostCreateValidator {
     /**
      * 촬영 시각 검증.
      *
-     * <p>카메라 경로는 촬영 시각이 있어야 한다 — 없으면 "지금 찍었다"를 확인할 방법이 없어
-     * 높음 등급 판정이 성립하지 않는다 (PST-023). 기기 시계가 하루 이상 앞선 값도 거른다.
+     * <p>신규 앱은 게시물에 촬영 시각을 저장하지 않는다. 이전 클라이언트가 보내는 값은
+     * 호환을 위해 받되 기기 시계가 하루 이상 앞선 값은 계속 거른다.
      */
     public void validateTakenAt(CreatePostRequest request, OffsetDateTime now) {
-        if (request.source() == PhotoSource.CAMERA && request.takenAt() == null) {
-            throw new ApiException(ErrorCode.POST_INVALID_TAKEN_AT,
-                    Map.of("reason", "requiredForCamera"));
-        }
         if (request.takenAt() != null && request.takenAt().isAfter(now.plusDays(1))) {
             throw new ApiException(ErrorCode.POST_INVALID_TAKEN_AT,
                     Map.of("takenAt", request.takenAt().toString()));

@@ -27,7 +27,7 @@ public class MapRepository {
                 SELECT thumbnail_url FROM post_images
                 WHERE post_id=p.post_id ORDER BY sort_order LIMIT 1
             ) pi ON true
-            WHERE p.status='ACTIVE' AND p.tier IN ('HIGH','MEDIUM')
+            WHERE p.status='ACTIVE'
               AND p.created_at>=:createdFrom
               AND coalesce(p.lat,pl.lat) IS NOT NULL AND coalesce(p.lng,pl.lng) IS NOT NULL
             """;
@@ -124,7 +124,7 @@ public class MapRepository {
                     SELECT p.post_id,p.user_id,p.area_code,p.created_at,coalesce(pr.score,0) score
                     FROM posts p JOIN places pl ON pl.place_id=p.place_id AND pl.status='ACTIVE'
                     LEFT JOIN post_rankings pr ON pr.post_id=p.post_id AND pr.period=:rankingPeriod
-                    WHERE p.status='ACTIVE' AND p.tier IN ('HIGH','MEDIUM') AND p.created_at>=:createdFrom
+                    WHERE p.status='ACTIVE' AND p.created_at>=:createdFrom
                 """ + areaFilter + """
                 ), ranked AS (
                     SELECT *,row_number() OVER (PARTITION BY area_code
@@ -238,6 +238,6 @@ public class MapRepository {
                           List<String> sampleThumbnailUrls,OffsetDateTime lastPostedAt,OffsetDateTime calculatedAt) { }
     public record RegionRow(PlaceDtos.Region region,int postCount,int contributorCount,Long representativePostId) { }
     public record PostLocation(int areaCode,Double lat,Double lng,OffsetDateTime createdAt,String status,String tier) {
-        boolean eligible() { return lat != null && lng != null && "ACTIVE".equals(status) && ("HIGH".equals(tier) || "MEDIUM".equals(tier)); }
+        boolean eligible() { return lat != null && lng != null && "ACTIVE".equals(status); }
     }
 }

@@ -20,6 +20,10 @@ public class GoogleGeocodingClient {
     }
 
     public AdministrativeArea reverse(double lat, double lng) {
+        return nearest(lat, lng).administrativeArea();
+    }
+
+    public ResolvedPlace nearest(double lat, double lng) {
         if (properties.mapsApiKey() == null || properties.mapsApiKey().isBlank()) {
             throw new ApiException(ErrorCode.COMMON_503);
         }
@@ -34,6 +38,8 @@ public class GoogleGeocodingClient {
         String level2 = null;
         String locality = null;
         String sublocality = null;
+        JsonNode firstResult = body.path("results").get(0);
+        String suggestedName = null;
         for (JsonNode result : body.path("results")) {
             for (JsonNode component : result.path("address_components")) {
                 JsonNode types = component.path("types");
@@ -42,12 +48,27 @@ public class GoogleGeocodingClient {
                 if (contains(types, "administrative_area_level_2")) level2 = component.path("long_name").asText();
                 if (contains(types, "locality")) locality = component.path("long_name").asText();
                 if (contains(types, "sublocality_level_1")) sublocality = component.path("long_name").asText();
+                if (suggestedName == null && isPlaceNameComponent(types)) {
+                    suggestedName = component.path("long_name").asText(null);
+                }
             }
-            if (country != null && level1 != null) break;
         }
         if (!"KR".equals(country) || level1 == null) throw new ApiException(ErrorCode.PLACE_OUT_OF_SERVICE_AREA);
         String district = firstNonBlank(sublocality, level2, locality);
-        return new AdministrativeArea(normalizeRegion(level1), normalizeDistrict(district));
+        JsonNode location = firstResult.path("geometry").path("location");
+        double resolvedLat = location.path("lat").asDouble(lat);
+        double resolvedLng = location.path("lng").asDouble(lng);
+        String formattedAddress = firstResult.path("formatted_address").asText(null);
+        if (suggestedName == null || suggestedName.isBlank()) {
+            suggestedName = firstAddressToken(formattedAddress);
+        }
+        return new ResolvedPlace(
+                firstResult.path("place_id").asText(null),
+                suggestedName,
+                formattedAddress,
+                resolvedLat,
+                resolvedLng,
+                new AdministrativeArea(normalizeRegion(level1), normalizeDistrict(district)));
     }
 
     static String normalizeRegion(String value) {
@@ -77,10 +98,26 @@ public class GoogleGeocodingClient {
         return false;
     }
 
+    private static boolean isPlaceNameComponent(JsonNode types) {
+        return contains(types, "premise") || contains(types, "point_of_interest")
+                || contains(types, "establishment") || contains(types, "route")
+                || contains(types, "sublocality_level_2");
+    }
+
+    private static String firstAddressToken(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.replaceFirst("^대한민국\\s*", "").trim();
+        int comma = normalized.indexOf(',');
+        return comma < 0 ? normalized : normalized.substring(0, comma).trim();
+    }
+
     private static String firstNonBlank(String... values) {
         for (String value : values) if (value != null && !value.isBlank()) return value;
         return null;
     }
 
     public record AdministrativeArea(String regionName, String districtName) { }
+    public record ResolvedPlace(String googlePlaceId, String suggestedName,
+                                String formattedAddress, double lat, double lng,
+                                AdministrativeArea administrativeArea) { }
 }

@@ -27,8 +27,9 @@ class _ReadyAuth extends AuthController {
 }
 
 class _StubPostRepository implements PostRepository {
-  _StubPostRepository({this.failLike = false, this.fetchFailure});
+  _StubPostRepository({this.failLike = false, this.fetchFailure, this.post});
 
+  final PostDetail? post;
   final bool failLike;
   PostFailure? fetchFailure;
   int fetchCount = 0;
@@ -39,7 +40,7 @@ class _StubPostRepository implements PostRepository {
   Future<PostDetail> fetchPost(String postId) async {
     fetchCount++;
     if (fetchFailure case final error?) throw error;
-    return detail;
+    return post ?? detail;
   }
 
   @override
@@ -97,7 +98,11 @@ class _StubPostRepository implements PostRepository {
 final detail = PostDetail(
   postId: 'pst_1',
   author: const PostAuthor(userId: 'usr_1', nickname: '너구리여행자'),
-  place: const PostPlace(placeId: 'plc_1', title: '전주 한옥마을', addr1: '전북 전주시'),
+  place: const PostPlace(
+    placeId: 'plc_1',
+    title: '전주 한옥마을',
+    addr1: '전북특별자치도 전주시 완산구 기린대로 99 아주 긴 상세 주소',
+  ),
   images: const [PostImage(postImageId: 'img_1', imageUrl: '')],
   content: '전주 한옥마을의 봄\n날씨 좋은 날 경복궁을 다녀왔어요.',
   tags: const [PostTag(tagId: 't1', name: '2026 전주 한옥마을 봄축제', locked: true)],
@@ -119,13 +124,17 @@ void main() {
     WidgetTester tester, {
     bool failLike = false,
     PostFailure? fetchFailure,
+    PostDetail? post,
+    Size size = const Size(412, 893),
+    double textScale = 1,
   }) async {
-    await tester.binding.setSurfaceSize(const Size(412, 893));
+    await tester.binding.setSurfaceSize(size);
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final repository = _StubPostRepository(
       failLike: failLike,
       fetchFailure: fetchFailure,
+      post: post,
     );
     final router = GoRouter(
       routes: [
@@ -163,11 +172,85 @@ void main() {
           authControllerProvider.overrideWith(_ReadyAuth.new),
           postRepositoryProvider.overrideWithValue(repository),
         ],
-        child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
+        child: MaterialApp.router(
+          theme: AppTheme.light,
+          routerConfig: router,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
     return repository;
+  }
+
+  for (final size in [
+    const Size(320, 640),
+    const Size(360, 800),
+    const Size(412, 893),
+    const Size(800, 360),
+    const Size(1024, 768),
+  ]) {
+    for (final scale in [1.0, 1.5, 2.0]) {
+      testWidgets('긴 장소 정보: $size, 글자 배율 $scale', (tester) async {
+        const title = '전북특별자치도 × 전주시청년축제 문화관광 특별행사장';
+        const address = '전북특별자치도 전주시 덕진구 백제대로 567 문화광장 야외무대';
+        await mount(
+          tester,
+          size: size,
+          textScale: scale,
+          post: PostDetail(
+            postId: detail.postId,
+            author: detail.author,
+            place: const PostPlace(
+              placeId: 'plc_1',
+              title: title,
+              addr1: address,
+            ),
+            images: detail.images,
+            content: detail.content,
+            tags: const [],
+            likeCount: detail.likeCount,
+            commentCount: detail.commentCount,
+            tierResult: detail.tierResult,
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.scrollUntilVisible(
+          find.text(title),
+          200,
+          scrollable: find
+              .byWidgetPredicate(
+                (widget) =>
+                    widget is Scrollable &&
+                    widget.axisDirection == AxisDirection.down,
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
+        for (final value in [title, address]) {
+          final finder = find.text(value);
+          await tester.ensureVisible(finder);
+          await tester.pumpAndSettle();
+          final bounds = tester.getRect(finder);
+          expect(bounds.left, greaterThanOrEqualTo(0));
+          expect(bounds.right, lessThanOrEqualTo(size.width));
+          final widget = tester.widget<Text>(finder);
+          expect(widget.maxLines, isNull);
+          expect(widget.overflow, isNot(TextOverflow.ellipsis));
+          expect(tester.takeException(), isNull);
+        }
+        await tester.ensureVisible(find.text(title));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(title));
+        await tester.pumpAndSettle();
+        expect(find.text('place-screen'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
   }
 
   testWidgets('제목과 본문을 나눠 보여준다', (tester) async {
@@ -181,7 +264,19 @@ void main() {
     expect(find.text('전주 한옥마을'), findsOneWidget);
     expect(find.text('2026 전주 한옥마을 봄축제'), findsOneWidget);
     expect(find.text('142'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('댓글 28개'),
+      200,
+      scrollable: find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is Scrollable &&
+                widget.axisDirection == AxisDirection.down,
+          )
+          .first,
+    );
     expect(find.text('댓글 28개'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('신뢰 등급 배지를 누르면 판정 기준을 연다', (tester) async {
@@ -219,6 +314,18 @@ void main() {
 
   testWidgets('댓글 줄을 누르면 댓글 화면으로 간다', (tester) async {
     await mount(tester);
+    await tester.scrollUntilVisible(
+      find.text('댓글 28개'),
+      200,
+      scrollable: find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is Scrollable &&
+                widget.axisDirection == AxisDirection.down,
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('댓글 28개'));
     await tester.pumpAndSettle();
     expect(find.text('comments-screen'), findsOneWidget);

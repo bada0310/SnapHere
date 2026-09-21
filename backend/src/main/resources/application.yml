@@ -60,7 +60,7 @@ snaphere:
   auth:
     google-client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
     jwt-secret: ${SNAPHERE_JWT_SECRET:}
-    terms-version: ${SNAPHERE_TERMS_VERSION:2026-08-01}
+    terms-version: ${SNAPHERE_TERMS_VERSION:2026-09-19}
   share:
     web-base-url: ${SNAPHERE_SHARE_BASE_URL:https://snaphere.app}  # 앱 설치 시 같은 주소가 앱으로 열린다 (CMU-021)
     path-prefix: /p/

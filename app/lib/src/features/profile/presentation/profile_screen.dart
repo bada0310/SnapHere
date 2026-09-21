@@ -160,28 +160,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 empty: _EmptyPosts(own: own),
                 sliverBuilder: (posts) => SliverPadding(
                   padding: const EdgeInsets.all(16),
-                  sliver: own
-                      ? SliverList.separated(
-                          itemCount: posts.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (_, index) =>
-                              ProfilePostCard(post: posts[index]),
-                        )
-                      : SliverGrid.builder(
-                          itemCount: posts.length,
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 240,
-                                mainAxisExtent: 218,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                              ),
-                          itemBuilder: (_, index) => ProfilePostCard(
-                            post: posts[index],
-                            compact: true,
-                          ),
+                  sliver: SliverGrid.builder(
+                    itemCount: posts.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 240,
+                          mainAxisExtent: 280,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
                         ),
+                    itemBuilder: (_, index) =>
+                        ProfilePostCard(post: posts[index], compact: true),
+                  ),
                 ),
               ),
             ],
@@ -224,6 +214,8 @@ class _ProfileHeader extends StatelessWidget {
                       profile.bio?.isNotEmpty == true
                           ? profile.bio!
                           : '아직 소개가 없어요',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 13,
                         color: AppColors.textSecondary,
@@ -261,12 +253,7 @@ class _ProfileHeader extends StatelessWidget {
                     '/users/${profile.userId}/following',
                   ),
                 ),
-                if (own)
-                  _Metric(
-                    label: '뱃지',
-                    count: profile.stats.badgeCount,
-                    onTap: () => openShellRoute(context, '/profile/badges'),
-                  ),
+                if (own) _Metric(label: '뱃지', count: profile.stats.badgeCount),
               ],
             ),
           ),
@@ -361,8 +348,8 @@ class ProfilePostCard extends StatelessWidget {
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                height: compact ? 100 : 160,
+              child: AspectRatio(
+                aspectRatio: 1,
                 child: RemoteImage(url: post.thumbnailUrl),
               ),
             ),

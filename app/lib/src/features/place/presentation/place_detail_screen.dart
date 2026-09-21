@@ -33,7 +33,8 @@ class PlaceDetailScreen extends ConsumerWidget {
       ),
       body: place.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => NetworkErrorView(
+        error: (_, _) => LoadErrorView(
+          title: '장소 정보를 불러오지 못했어요',
           onRetry: () => ref.invalidate(placeDetailProvider(placeId)),
         ),
         data: (detail) => RefreshIndicator(

@@ -5,11 +5,12 @@ import 'package:snap_here/src/features/community/domain/community_repository.dar
 import 'package:snap_here/src/features/post/domain/post_id.dart';
 
 class ApiCommunityRepository implements CommunityRepository {
-  ApiCommunityRepository({ApiClient? api, this.accessToken})
+  ApiCommunityRepository({ApiClient? api, this.accessToken, this.currentUserId})
     : _api = api ?? ApiClient();
 
   final ApiClient _api;
   final String? accessToken;
+  final String? currentUserId;
 
   @override
   Future<CommunityFeed> fetchFeed({
@@ -17,7 +18,28 @@ class ApiCommunityRepository implements CommunityRepository {
     required CommunitySort sort,
   }) async {
     if (tab == CommunityFeedTab.following) {
-      return const CommunityFeed(posts: [], sectionTitle: '팔로잉 스냅');
+      if (accessToken == null) {
+        return const CommunityFeed(posts: [], sectionTitle: '팔로잉 스냅');
+      }
+      try {
+        final result = jsonMap(
+          await _api.get(
+            '/feeds/following',
+            query: const {'size': '30'},
+            accessToken: accessToken,
+          ),
+        );
+        final page = jsonMap(result['page']);
+        final posts = await Future.wait(jsonMapList(page['items']).map(_hydrate));
+        return CommunityFeed(posts: posts, sectionTitle: '팔로잉 스냅');
+      } on ApiException {
+        // 이전 서버에는 팔로잉 집계 피드가 없다. 이미 제공하던 팔로잉 목록과
+        // 사용자별 게시글 목록을 조합해, 배포 순서와 관계없이 탭을 사용할 수 있게 한다.
+        return CommunityFeed(
+          posts: await _followingFallback(),
+          sectionTitle: '팔로잉 스냅',
+        );
+      }
     }
     final path = sort == CommunitySort.latest
         ? '/feeds/recent'
@@ -33,6 +55,38 @@ class ApiCommunityRepository implements CommunityRepository {
       sectionTitle: sort == CommunitySort.latest ? '최신 스냅' : '인기 스냅',
       posts: posts,
     );
+  }
+
+  Future<List<CommunityPost>> _followingFallback() async {
+    final userId = currentUserId;
+    if (userId == null) return const [];
+    try {
+      final page = jsonMap(
+        await _api.get(
+          '/users/$userId/following',
+          query: const {'size': '30'},
+          accessToken: accessToken,
+        ),
+      );
+      final users = jsonMapList(page['items']);
+      final reader = PostPageReader(_api, accessToken: accessToken);
+      final pages = await Future.wait(
+        users.map((user) async {
+          final id = user['userId'] as String?;
+          if (id == null || id.isEmpty) return const <CommunityPost>[];
+          try {
+            return (await reader.fetch('/users/$id/posts')).items;
+          } on ApiException {
+            return const <CommunityPost>[];
+          }
+        }),
+      );
+      final posts = pages.expand((items) => items).toList()
+        ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
+      return posts.take(30).toList(growable: false);
+    } on ApiException {
+      return const [];
+    }
   }
 
   Future<CommunityPost> _hydrate(Map<String, Object?> summary) async {
@@ -54,6 +108,8 @@ class ApiCommunityRepository implements CommunityRepository {
     final title = normalized.isEmpty
         ? (place?['title'] as String? ?? '여행 스냅')
         : normalized.split('\n').first;
+    final lines = normalized.split('\n');
+    final body = lines.length <= 1 ? '' : lines.skip(1).join('\n').trim();
     return CommunityPost(
       postId: json['postId']! as String,
       author: CommunityAuthor(
@@ -62,7 +118,7 @@ class ApiCommunityRepository implements CommunityRepository {
         profileImageUrl: author['profileImageUrl'] as String?,
       ),
       title: title,
-      content: normalized,
+      content: body,
       placeName: place?['title'] as String?,
       regionName: place?['addr1'] as String?,
       thumbnailUrl: json['thumbnailUrl'] as String?,
@@ -178,7 +234,6 @@ class ApiCommunityRepository implements CommunityRepository {
   /// 필터 칩을 서버의 `types` 파라미터로 옮긴다. `전체`는 지정하지 않는다.
   String? _typesOf(CommunitySearchFilter filter) => switch (filter) {
     CommunitySearchFilter.all => null,
-    CommunitySearchFilter.author => 'USER',
     CommunitySearchFilter.region => 'PLACE',
     CommunitySearchFilter.place => 'PLACE',
   };

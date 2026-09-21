@@ -195,6 +195,8 @@ class _UploadScreenContent extends ConsumerWidget {
                 id: resolvedEvent.place.placeId,
                 name: resolvedEvent.place.name,
                 address: resolvedEvent.place.address,
+                latitude: resolvedEvent.place.latitude,
+                longitude: resolvedEvent.place.longitude,
               ),
               fixedTags: resolvedEvent.fixedTags,
               verifyRadiusM: resolvedEvent.verifyRadiusM,
@@ -301,81 +303,44 @@ class _GalleryStep extends ConsumerWidget {
                 ),
               ),
             ),
-          Container(
-            height: 56,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            decoration: const BoxDecoration(
-              color: AppColors.card,
-              border: Border.symmetric(
-                horizontal: BorderSide(color: AppColors.border),
-              ),
-            ),
-            child: Row(
-              children: [
-                _GalleryTabButton(
-                  label: '최근',
-                  selected: state.galleryTab == UploadGalleryTab.recent,
-                  onTap: () =>
-                      controller.selectGalleryTab(UploadGalleryTab.recent),
-                ),
-                const SizedBox(width: AppSpacing.xl),
-                _GalleryTabButton(
-                  label: '임시 저장 피드',
-                  selected: state.galleryTab == UploadGalleryTab.drafts,
-                  onTap: () =>
-                      controller.selectGalleryTab(UploadGalleryTab.drafts),
-                ),
-              ],
-            ),
-          ),
           Expanded(
-            child:
-                state.galleryTab == UploadGalleryTab.drafts &&
-                    state.visiblePhotos.isEmpty
-                ? const Center(child: Text('저장된 사진이 없어요'))
-                : GridView.builder(
-                    key: const Key('upload-gallery-grid'),
-                    padding: EdgeInsets.zero,
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 180,
-                          crossAxisSpacing: 2,
-                          mainAxisSpacing: 2,
-                        ),
-                    itemCount:
-                        state.visiblePhotos.length +
-                        (state.galleryTab == UploadGalleryTab.recent ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      final hasCamera =
-                          state.galleryTab == UploadGalleryTab.recent;
-                      if (hasCamera && index == 0) {
-                        return InkWell(
-                          key: const Key('upload-camera-tile'),
-                          onTap: () async {
-                            await _capturePhoto(context, controller);
-                          },
-                          child: const ColoredBox(
-                            color: Color(0xFF21262E),
-                            child: Icon(
-                              Icons.photo_camera,
-                              size: 36,
-                              color: Colors.white,
-                            ),
-                          ),
-                        );
-                      }
-                      final photo =
-                          state.visiblePhotos[index - (hasCamera ? 1 : 0)];
-                      final order = state.selectedPhotoIds.indexOf(photo.id);
-                      return _GalleryTile(
-                        photo: photo,
-                        order: order < 0 ? null : order + 1,
-                        onTap: () {
-                          _togglePhoto(context, controller, photo, order);
-                        },
-                      );
+            child: GridView.builder(
+              key: const Key('upload-gallery-grid'),
+              padding: EdgeInsets.zero,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 180,
+                crossAxisSpacing: 2,
+                mainAxisSpacing: 2,
+              ),
+              itemCount: state.recentPhotos.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return InkWell(
+                    key: const Key('upload-camera-tile'),
+                    onTap: () async {
+                      await _capturePhoto(context, controller);
                     },
-                  ),
+                    child: const ColoredBox(
+                      color: Color(0xFF21262E),
+                      child: Icon(
+                        Icons.photo_camera,
+                        size: 36,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                }
+                final photo = state.recentPhotos[index - 1];
+                final order = state.selectedPhotoIds.indexOf(photo.id);
+                return _GalleryTile(
+                  photo: photo,
+                  order: order < 0 ? null : order + 1,
+                  onTap: () {
+                    _togglePhoto(context, controller, photo, order);
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -396,7 +361,7 @@ class _GalleryStep extends ConsumerWidget {
         await Geolocator.requestPermission();
       }
     } catch (_) {
-      // 위치를 얻지 못해도 촬영은 허용하고 등록 전에 등급 영향을 안내한다.
+      // 위치를 얻지 못해도 촬영은 허용하고 장소를 직접 검색할 수 있게 한다.
     }
     if (!context.mounted) return;
     final photo = await Navigator.of(context).push<UploadPhoto>(
@@ -417,10 +382,6 @@ class _GalleryStep extends ConsumerWidget {
   ) {
     if (order < 0 && _photoLimitReached) {
       _showSelectionMessage(context, _photoLimitMessage);
-      return;
-    }
-    if (order >= 0 && state.selectedPhotoIds.length == 1) {
-      _showSelectionMessage(context, '사진을 한 장 이상 선택해 주세요.');
       return;
     }
     controller.togglePhoto(photo.id);
@@ -564,15 +525,6 @@ class _FormStep extends ConsumerWidget {
                 _EventUploadBanner(context: eventContext),
                 const SizedBox(height: AppSpacing.lg),
               ],
-              if (state.primaryPhoto?.source == UploadPhotoSource.camera &&
-                  !state.primaryPhoto!.hasLocationMetadata) ...[
-                const Text(
-                  '촬영 위치를 확인하지 못했어요. 이 사진은 낮음 등급으로 등록됩니다. '
-                  '높음 등급을 원하면 위치 서비스를 켜고 위치 권한을 허용한 뒤 다시 촬영해 주세요.',
-                  key: Key('camera-location-warning'),
-                ),
-                const SizedBox(height: AppSpacing.lg),
-              ],
               SizedBox(
                 height: 60,
                 child: ListView.separated(
@@ -610,7 +562,7 @@ class _FormStep extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _FieldLabel(
-                    hasAutomaticMatch ? '장소 · GPS 자동 매칭' : '장소',
+                    hasAutomaticMatch ? '장소 · 최근접 장소 추천' : '장소',
                     isRequired: places.isEmpty,
                   ),
                   if (selectedPlace != null)
@@ -636,7 +588,7 @@ class _FormStep extends ConsumerWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       ),
                       const SizedBox(width: AppSpacing.md),
-                      const Expanded(child: Text('GPS로 주변 장소를 찾고 있어요')),
+                      const Expanded(child: Text('Google 지도로 최근접 장소를 찾고 있어요')),
                       TextButton(
                         onPressed: openPlaceSearch,
                         child: const Text('직접 검색'),
@@ -1323,8 +1275,8 @@ class _CameraPreviewScreenState extends State<_CameraPreviewScreen>
     try {
       final coordinates = await _captureCoordinates();
       if (!mounted || !controller.value.isInitialized) return;
-      final file = await controller.takePicture();
       final takenAt = DateTime.now();
+      final file = await controller.takePicture();
       final croppedPath = await compute(_cropCapturedPhoto, {
         'path': file.path,
         'ratio': _viewRatio.portraitAspectRatio,
@@ -1705,42 +1657,6 @@ class _AddPhotoButton extends StatelessWidget {
           SizedBox(height: 4),
           Text('사진 추가', style: TextStyle(fontSize: 11)),
         ],
-      ),
-    ),
-  );
-}
-
-class _GalleryTabButton extends StatelessWidget {
-  const _GalleryTabButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Container(
-      height: 56,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: selected ? AppColors.brand : Colors.transparent,
-            width: 2,
-          ),
-        ),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: selected ? AppColors.textPrimary : AppColors.textSecondary,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-        ),
       ),
     ),
   );

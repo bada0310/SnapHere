@@ -58,12 +58,18 @@ class UploadPlace {
     required this.name,
     required this.address,
     this.distanceMeters,
+    this.latitude,
+    this.longitude,
   });
 
   final String id;
   final String name;
   final String address;
   final int? distanceMeters;
+  final double? latitude;
+  final double? longitude;
+
+  bool get hasCoordinate => latitude != null && longitude != null;
 
   String get tagName {
     final cleaned = name
@@ -74,6 +80,16 @@ class UploadPlace {
     // 유니코드 문자 단위로 잘라 이모지의 서로게이트 쌍을 나누지 않는다.
     return String.fromCharCodes(cleaned.runes.take(50));
   }
+}
+
+/// 사진 메타데이터와 선택 장소 좌표로 기기 안에서 계산한 인증 결과다.
+/// 이 값만 게시글 등록 요청에 포함하며 사진 좌표·촬영 시각은 전송하지 않는다.
+@immutable
+class LocalTierResult {
+  const LocalTierResult({required this.tier, required this.withinRadius});
+
+  final String tier;
+  final bool withinRadius;
 }
 
 @immutable

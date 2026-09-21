@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -125,6 +126,29 @@ Widget _wrap({
 }
 
 void main() {
+  String? clipboardText;
+
+  setUp(() {
+    clipboardText = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+          switch (call.method) {
+            case 'Clipboard.setData':
+              clipboardText = (call.arguments as Map)['text'] as String?;
+              return null;
+            case 'Clipboard.getData':
+              return <String, dynamic>{'text': clipboardText};
+            default:
+              return null;
+          }
+        });
+  });
+
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, null);
+  });
+
   testWidgets('이벤트 홈은 지역과 신규 행사 카드를 보여준다', (tester) async {
     await tester.binding.setSurfaceSize(const Size(412, 893));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -162,6 +186,14 @@ void main() {
     expect(find.text('청계광장'), findsOneWidget);
     expect(find.text('서울 빛초롱 참여 뱃지'), findsOneWidget);
     expect(find.text('참여 스냅'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('공유'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('이벤트 공유 링크를 복사했어요.'), findsOneWidget);
+    expect(
+      (await Clipboard.getData(Clipboard.kTextPlain))?.text,
+      'https://snaphere.app/events/event-1',
+    );
 
     await tester.tap(find.text('사진 올리고 참여하기'));
     await tester.pumpAndSettle();

@@ -26,6 +26,7 @@ import 'package:snap_here/src/features/post/presentation/comments_screen.dart';
 import 'package:snap_here/src/features/post/presentation/post_detail_screen.dart';
 import 'package:snap_here/src/features/region/presentation/region_screen.dart';
 import 'package:snap_here/src/features/profile/presentation/profile_screen.dart';
+import 'package:snap_here/src/features/profile/presentation/profile_edit_screen.dart';
 import 'package:snap_here/src/features/rankings/presentation/rankings_screen.dart';
 import 'package:snap_here/src/features/settings/presentation/settings_screen.dart';
 import 'package:snap_here/src/features/social/data/api_social_repository.dart';
@@ -218,6 +219,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const NotificationScreen(),
       ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/profile/edit',
+        builder: (_, _) => const ProfileEditScreen(),
+      ),
       GoRoute(
         path: '/me/activity',
         builder: (_, state) => MyActivityScreen(

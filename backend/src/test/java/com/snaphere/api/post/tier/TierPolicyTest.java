@@ -24,6 +24,10 @@ class TierPolicyTest {
         return TierPolicy.decide(in, TierThresholds.DEFAULT);
     }
 
+    private static TierInput inputAt200m(PhotoSource source, OffsetDateTime takenAt, int distanceM) {
+        return new TierInput(source, takenAt, distanceM, 200, true, NOW);
+    }
+
     @Nested
     @DisplayName("높음 (PST-023)")
     class 높음 {
@@ -95,6 +99,17 @@ class TierPolicyTest {
     @Nested
     @DisplayName("낮음 (PST-025)")
     class 낮음 {
+
+        @Test
+        @DisplayName("사진 위치 199m·200m는 인증하고 201m는 인증하지 않는다")
+        void 사진위치_이백미터_경계() {
+            assertThat(decide(inputAt200m(PhotoSource.ALBUM, NOW.minusDays(1), 199)).tier())
+                    .isEqualTo(TrustTier.MEDIUM);
+            assertThat(decide(inputAt200m(PhotoSource.ALBUM, NOW.minusDays(1), 200)).tier())
+                    .isEqualTo(TrustTier.MEDIUM);
+            assertThat(decide(inputAt200m(PhotoSource.ALBUM, NOW.minusDays(1), 201)).reason())
+                    .isEqualTo(TierReason.OUT_OF_RADIUS);
+        }
 
         @Test
         @DisplayName("촬영 좌표가 없으면 낮음")

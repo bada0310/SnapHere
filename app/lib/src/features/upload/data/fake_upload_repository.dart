@@ -38,12 +38,6 @@ class FakeUploadRepository implements UploadRepository {
   }
 
   @override
-  Future<List<UploadPhoto>> fetchDraftGallery() async {
-    await Future<void>.delayed(_latency);
-    return const [];
-  }
-
-  @override
   Future<void> openMediaSettings() async {}
 
   @override

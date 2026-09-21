@@ -148,4 +148,16 @@ class FeedServiceTest {
         assertThat(createdAt.getValue().toInstant()).isEqualTo(at.toInstant());
         assertThat(postId.getValue()).isEqualTo(55L);
     }
+
+    @Test
+    @DisplayName("팔로잉 피드는 로그인 사용자를 조회 조건으로 넘긴다")
+    void followingUsesViewer() {
+        when(posts.findFollowingFeed(any(), any(), any(), any())).thenReturn(List.of(post(1L, 1)));
+
+        CursorPage<PostSummaryResponse> page = service.following(AUTHOR, null, 20);
+
+        assertThat(page.items()).hasSize(1);
+        verify(posts).findFollowingFeed(org.mockito.ArgumentMatchers.eq(AUTHOR),
+                isNull(), isNull(), any(Pageable.class));
+    }
 }

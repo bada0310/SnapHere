@@ -6,6 +6,8 @@ import com.snaphere.api.common.error.ErrorCode;
 import com.snaphere.api.common.security.CurrentUser;
 import com.snaphere.api.common.web.CursorCodec;
 import com.snaphere.api.common.web.CursorPage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,23 +19,25 @@ import java.util.Locale;
 
 @Service
 public class PlaceService {
+    private static final Logger log = LoggerFactory.getLogger(PlaceService.class);
     private static final int MAX_PAGE = 50;
     private final PlaceRepository places;
-    private final GoogleGeocodingClient geocoder;
     private final TourPlaceDetailClient details;
     private final ViewCounterService views;
     private final RecentPlaceService recentPlaces;
     private final PlaceReadCache cache;
+    private final GoogleGeocodingClient geocoder;
 
-    public PlaceService(PlaceRepository places, GoogleGeocodingClient geocoder,
+    public PlaceService(PlaceRepository places,
                         TourPlaceDetailClient details, ViewCounterService views,
-                        RecentPlaceService recentPlaces, PlaceReadCache cache) {
+                        RecentPlaceService recentPlaces, PlaceReadCache cache,
+                        GoogleGeocodingClient geocoder) {
         this.places = places;
-        this.geocoder = geocoder;
         this.details = details;
         this.views = views;
         this.recentPlaces = recentPlaces;
         this.cache = cache;
+        this.geocoder = geocoder;
     }
 
     public List<PlaceDtos.Region> regions() {
@@ -69,6 +73,16 @@ public class PlaceService {
         return new PlaceDtos.NearbyPlaceResult(exact, candidates, exact == null, radiusM, nearestDistance);
     }
 
+    public PlaceDtos.NearestPlaceMatchResult nearestMatch(
+            PlaceDtos.NearestPlaceMatchRequest request, CurrentUser actor) {
+        validCoordinate(request.lat(), request.lng());
+        // 사진의 원래 좌표에서 계산한 거리 순서로 추천한다. 역지오코딩 좌표나
+        // 이름 유사도는 장소 선택 순서를 바꾸지 않는다.
+        List<PlaceDtos.PlaceSummary> candidates = places.nearby(
+                request.lat(), request.lng(), 20_000, 20, actor.userId());
+        return new PlaceDtos.NearestPlaceMatchResult(null, null, candidates);
+    }
+
     public PlaceDtos.PlaceDetail detail(String externalId, String acceptLanguage, CurrentUser actor) {
         long id = ExternalIds.parse(externalId, "plc", ErrorCode.PLACE_NOT_FOUND);
         PlaceRepository.PlaceRecord place = places.placeRecord(id);
@@ -86,15 +100,32 @@ public class PlaceService {
         }
         java.util.UUID viewer = actor == null ? null : actor.userId();
         PlaceDtos.PlaceSummary summary = places.summary(id, viewer);
-        List<PlaceDtos.PlaceSummary> nearby = summary.lat() == null ? List.of() : places.nearby(
-                summary.lat(), summary.lng(), 5000, 7, viewer).stream().filter(p -> !p.placeId().equals(externalId)).limit(6).toList();
-        List<PlaceDtos.PostSummary> recent = places.posts(id, null, 12, viewer);
+        // 부가 섹션의 조회 실패가 장소 기본 정보를 가리지 않게 한다. 상세 화면은
+        // 장소명·주소·인증 반경만으로도 열 수 있고, 주변 장소·최근 글은 다음 진입에서
+        // 다시 보강된다.
+        List<PlaceDtos.PlaceSummary> nearby = summary.lat() == null ? List.of() : optional(
+                "주변 장소", id, () -> places.nearby(summary.lat(), summary.lng(), 5000, 7, viewer)
+                        .stream().filter(p -> !p.placeId().equals(externalId)).limit(6).toList(), List.of());
+        List<PlaceDtos.PostSummary> recent = optional(
+                "최근 게시글", id, () -> places.posts(id, null, 12, viewer), List.of());
         long totalViews = detail.viewCount() + views.pending(id) + 1;
         views.increment(id);
         // 최근 본 장소 (VST-006). 비회원은 남길 곳이 없어 건너뛴다.
         recentPlaces.record(viewer, id);
         return new PlaceDtos.PlaceDetail(summary, detail.overview(), language, detail.tel(), detail.homepage(),
-                detail.verifyRadiusM(), totalViews, places.ranking(id), nearby, recent);
+                detail.verifyRadiusM(), totalViews,
+                optional("장소 랭킹", id, () -> places.ranking(id), null), nearby, recent);
+    }
+
+    private <T> T optional(String section, long placeId, java.util.function.Supplier<T> load,
+                           T fallback) {
+        try {
+            return load.get();
+        } catch (RuntimeException failure) {
+            log.warn("장소 상세의 {} 조회 실패. 기본 정보로 응답한다. placeId={}, type={}",
+                    section, placeId, failure.getClass().getSimpleName());
+            return fallback;
+        }
     }
 
     private PlaceReadCache.DetailContent cachedDetail(long id, String language,
@@ -175,7 +206,10 @@ public class PlaceService {
                 cache.evictDetail(place.id(),language);
             }
         } catch (RuntimeException e) {
-            if ("ko".equals(language)) throw new ApiException(ErrorCode.COMMON_503);
+            // 관광 API의 부가정보 장애가 내부 DB에 이미 저장된 장소명·주소·사진까지
+            // 가리지 않게 한다. 빈 상세를 저장하지 않아 다음 요청에서 다시 보강한다.
+            log.warn("장소 부가정보 보강 실패. 기본 정보로 응답한다. placeId={}, language={}, type={}",
+                    place.id(), language, e.getClass().getSimpleName());
         }
     }
 

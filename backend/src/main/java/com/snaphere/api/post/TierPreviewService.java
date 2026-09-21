@@ -13,7 +13,6 @@ import com.snaphere.api.post.tier.TierDecisionLogger;
 import com.snaphere.api.post.tier.TierInput;
 import com.snaphere.api.post.tier.TierPolicy;
 import com.snaphere.api.post.tier.TierThresholds;
-import com.snaphere.api.post.tier.VerifyRadiusResolver;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -36,16 +35,13 @@ public class TierPreviewService {
 
     private final PlaceSnapshotReader placeReader;
     private final EventSnapshotReader eventReader;
-    private final VerifyRadiusResolver radiusResolver;
     private final TierDecisionLogger decisionLogger;
 
     public TierPreviewService(PlaceSnapshotReader placeReader,
                               EventSnapshotReader eventReader,
-                              VerifyRadiusResolver radiusResolver,
                               TierDecisionLogger decisionLogger) {
         this.placeReader = placeReader;
         this.eventReader = eventReader;
-        this.radiusResolver = radiusResolver;
         this.decisionLogger = decisionLogger;
     }
 
@@ -64,7 +60,8 @@ public class TierPreviewService {
                             Map.of("eventId", request.eventId())));
         }
 
-        int radiusM = radiusResolver.resolve(place, event);
+        // 실제 게시 등록과 반드시 같은 200m 사진 위치 인증 규칙을 사용한다.
+        int radiusM = 200;
         Integer distanceM = distanceOrNull(place, request);
 
         TierInput input = new TierInput(request.source(), request.takenAt(), distanceM,

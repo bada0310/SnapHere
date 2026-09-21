@@ -36,6 +36,13 @@ public final class PlaceDtos {
                                     boolean createAllowed, int searchedRadiusM,
                                     Integer nearestDistanceM) { }
 
+    public record NearestPlaceMatchRequest(
+            @NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,
+            @NotNull @DecimalMin("-180") @DecimalMax("180") Double lng) { }
+
+    public record NearestPlaceMatchResult(String suggestedName, String formattedAddress,
+                                          List<PlaceSummary> candidates) { }
+
     public record CreatePlaceRequest(
             @NotBlank @Size(max = 100) String title,
             @NotNull @DecimalMin("-90") @DecimalMax("90") Double lat,

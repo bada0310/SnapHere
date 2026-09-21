@@ -71,6 +71,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('여행하는 너구리 (나)님에게 답글'), findsOneWidget);
     expect(find.text('취소'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).focusNode?.hasFocus,
+      isTrue,
+    );
+    await tester.enterText(find.byType(TextField), '답글 작성 중');
+    await tester.pump();
+    expect(find.text('답글 작성 중'), findsOneWidget);
   });
 
   testWidgets('답글 작성을 취소하면 새 댓글 상태로 돌아간다', (tester) async {
@@ -113,5 +120,22 @@ void main() {
     await tester.tap(find.text('삭제'));
     await tester.pumpAndSettle();
     expect(find.text('봄날 풍경이 정말 좋았어요!'), findsNothing);
+  });
+
+  testWidgets('comment input stays above the software keyboard', (
+    tester,
+  ) async {
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(() => tester.view.resetViewInsets());
+    await mount(tester);
+
+    final padding = tester.widget<AnimatedPadding>(
+      find.byType(AnimatedPadding),
+    );
+    expect(padding.padding, const EdgeInsets.only(bottom: 100));
+
+    await tester.enterText(find.byType(TextField), 'visible while typing');
+    await tester.pump();
+    expect(find.text('visible while typing'), findsOneWidget);
   });
 }

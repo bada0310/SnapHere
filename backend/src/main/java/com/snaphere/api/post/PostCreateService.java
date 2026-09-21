@@ -33,8 +33,8 @@ import com.snaphere.api.post.tier.TierDecision;
 import com.snaphere.api.post.tier.TierDecisionLogger;
 import com.snaphere.api.post.tier.TierInput;
 import com.snaphere.api.post.tier.TierPolicy;
+import com.snaphere.api.post.tier.TierReason;
 import com.snaphere.api.post.tier.TierThresholds;
-import com.snaphere.api.post.tier.VerifyRadiusResolver;
 import com.snaphere.api.visit.VisitRecorder;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -54,9 +54,8 @@ import java.util.UUID;
  *
  * <p>기능 명세: 2.3 사진·캡션·태그 &gt; 게시글 등록
  *
- * <p>클라이언트가 보낸 등급과 지역 코드는 쓰지 않는다. 등급은 미리보기와 같은
- * {@link TierPolicy} 로 다시 판정하고(PST-022) 지역 코드는 장소에서 역산한다(PST-018).
- * 미리보기와 실제 판정이 다르면 사용자가 속았다고 느끼므로 규칙은 한 곳에만 둔다.
+ * <p>새 앱은 사진 위치·촬영 시각을 기기에서만 판정하고 등급 결과만 보낸다. 이전 요청에만
+ * 호환을 위해 {@link TierPolicy} 서버 판정을 유지한다. 지역 코드는 장소에서 역산한다(PST-018).
  */
 @Service
 public class PostCreateService {
@@ -71,7 +70,6 @@ public class PostCreateService {
     private final EventSnapshotReader events;
     private final EventFixedTagReader eventFixedTags;
     private final EventParticipationRecorder participation;
-    private final VerifyRadiusResolver radiusResolver;
     private final TierDecisionLogger decisionLogger;
     private final PostCreateValidator validator;
     private final UploadLimitChecker limitChecker;
@@ -90,7 +88,6 @@ public class PostCreateService {
                              EventSnapshotReader events,
                              EventFixedTagReader eventFixedTags,
                              EventParticipationRecorder participation,
-                             VerifyRadiusResolver radiusResolver,
                              TierDecisionLogger decisionLogger,
                              PostCreateValidator validator,
                              UploadLimitChecker limitChecker,
@@ -108,7 +105,6 @@ public class PostCreateService {
         this.events = events;
         this.eventFixedTags = eventFixedTags;
         this.participation = participation;
-        this.radiusResolver = radiusResolver;
         this.decisionLogger = decisionLogger;
         this.validator = validator;
         this.limitChecker = limitChecker;
@@ -147,13 +143,15 @@ public class PostCreateService {
         Set<String> lockedNames = normalizedNames(fixedTagNames);
 
         TierInput tierInput = buildTierInput(request, place, event, now);
-        TierDecision decision = TierPolicy.decide(tierInput, TierThresholds.DEFAULT);
+        TierDecision decision = request.localTier() == null
+                ? TierPolicy.decide(tierInput, TierThresholds.DEFAULT)
+                : locallyDecidedTier(request, now);
 
         // 지역 코드는 장소에서 가져온다. 요청 본문에는 애초에 받는 필드가 없다 (PST-018).
         PostEntity post = posts.save(PostEntity.create(
                 userId, place.getPlaceId(), request.eventId(), place.getAreaCode(),
                 request.content(), decision.tier(),
-                request.lat(), request.lng(), request.takenAt(), request.source()));
+                null, null, null, request.source()));
 
         List<PostImageEntity> savedImages = saveImages(post.getPostId(), images);
         Set<String> suggestedNames = tagSuggestionService.suggestedNormalizedNames(
@@ -231,13 +229,21 @@ public class PostCreateService {
 
     private TierInput buildTierInput(CreatePostRequest request, PlaceEntity place,
                                      EventSnapshot event, OffsetDateTime now) {
-        int radiusM = radiusResolver.resolve(place.toSnapshot(), event);
+        // 사진 위치 인증은 장소·행사별 표시 반경과 분리해 200m로 고정한다.
+        int radiusM = 200;
         Integer distanceM = null;
         if (request.hasCoordinate() && place.hasCoordinate()) {
             distanceM = GeoDistance.meters(place.getLat(), place.getLng(), request.lat(), request.lng());
         }
         return new TierInput(request.source(), request.takenAt(), distanceM, radiusM,
                 place.hasCoordinate(), now);
+    }
+
+    private TierDecision locallyDecidedTier(CreatePostRequest request, OffsetDateTime now) {
+        // 거리·촬영 시각은 서버가 받지 않으므로 로그와 응답에 만들거나 추정하지 않는다.
+        boolean withinRadius = Boolean.TRUE.equals(request.localWithinRadius());
+        return new TierDecision(request.localTier(), TierReason.LOCAL_VERIFICATION,
+                withinRadius, null, 200, null, TierThresholds.DEFAULT, List.of(), now);
     }
 
     // ─────────────────────────────────────────────────────────── 저장

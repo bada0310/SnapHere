@@ -20,6 +20,22 @@ class ApiProfileRepository {
     jsonMap(await _api.get('/users/$userId', accessToken: accessToken)),
   );
 
+  Future<ProfileSnapshot> updateProfile({
+    required String nickname,
+    required String? bio,
+  }) async {
+    final token = accessToken;
+    if (token == null) throw const ApiException('로그인이 필요해요.');
+    final data = jsonMap(
+      await _api.patch(
+        '/me',
+        accessToken: token,
+        body: {'nickname': nickname, 'bio': bio},
+      ),
+    );
+    return _profile(jsonMap(data['profile']));
+  }
+
   Future<CursorPage<CommunityPost>> fetchPosts(
     String userId, {
     String? cursor,

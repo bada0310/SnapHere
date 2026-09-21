@@ -8,9 +8,7 @@ import 'package:snap_here/src/features/activity/domain/activity_models.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/auth/domain/auth_repository.dart';
 import 'package:snap_here/src/features/settings/application/settings_providers.dart';
-import 'package:snap_here/src/features/settings/domain/app_locale.dart';
 import 'package:snap_here/src/features/settings/presentation/widgets/account_deletion_dialog.dart';
-import 'package:snap_here/src/features/settings/presentation/widgets/locale_picker_sheet.dart';
 import 'package:snap_here/src/features/settings/presentation/widgets/settings_section.dart';
 
 /// Figma `Wireframe_v3 / 07 Shared Detail / 07_설정`.
@@ -38,14 +36,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         title: const Text('설정'),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: AppSpacing.xxl),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewPaddingOf(context).bottom + AppSpacing.xxl,
+        ),
         children: [
           SettingsSection(
             title: '계정',
             children: [
               SettingsRow(
                 label: '프로필 편집',
-                onTap: () => context.push('/profile-setup'),
+                onTap: () => context.push('/profile/edit'),
               ),
               SettingsRow(
                 label: '내 활동',
@@ -65,7 +65,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const SettingsSection(title: '표시', children: [_LocaleRow()]),
           const SettingsSection(
             title: '알림',
             children: [_PushNotificationRow()],
@@ -179,39 +178,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _signingOut = false);
-    }
-  }
-}
-
-class _LocaleRow extends ConsumerWidget {
-  const _LocaleRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(userSettingsProvider);
-    final locale = settings.value?.locale ?? AppLocale.ko;
-    return SettingsRow(
-      label: '언어',
-      trailingText: settings.isLoading ? null : locale.label,
-      enabled: !settings.isLoading,
-      onTap: () => _select(context, ref, locale),
-    );
-  }
-
-  Future<void> _select(
-    BuildContext context,
-    WidgetRef ref,
-    AppLocale current,
-  ) async {
-    final picked = await showLocalePickerSheet(context, selected: current);
-    if (picked == null || picked == current || !context.mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final error = await ref
-        .read(userSettingsProvider.notifier)
-        .selectLocale(picked);
-    if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
     }
   }
 }

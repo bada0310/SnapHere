@@ -56,6 +56,13 @@ public class PlaceController {
         return ok(service.nearby(lat, lng, radiusM, users.optional(request).orElse(null)), request);
     }
 
+    @PostMapping("/places/nearest-match")
+    ApiResponse<PlaceDtos.NearestPlaceMatchResult> nearestMatch(
+            @Valid @RequestBody PlaceDtos.NearestPlaceMatchRequest body,
+            HttpServletRequest request) {
+        return ok(service.nearestMatch(body, users.require(request)), request);
+    }
+
     @GetMapping("/places/{placeId}")
     ApiResponse<PlaceDtos.PlaceDetail> detail(@PathVariable String placeId,
                                                @RequestHeader(name = "Accept-Language", required = false) String language,

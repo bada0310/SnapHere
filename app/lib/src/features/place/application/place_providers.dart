@@ -19,6 +19,7 @@ final placeRepositoryProvider = Provider<PlaceRepository>((ref) {
 
 final placeDetailProvider = FutureProvider.family<PlaceDetail, String>(
   (ref, placeId) => ref.watch(placeRepositoryProvider).fetchPlace(placeId),
+  retry: (_, _) => null,
 );
 
 final placePostsProvider = FutureProvider.family<List<PlacePost>, String>((
@@ -29,8 +30,9 @@ final placePostsProvider = FutureProvider.family<List<PlacePost>, String>((
       .watch(placeRepositoryProvider)
       .fetchPlacePosts(placeId);
   return page.items;
-});
+}, retry: (_, _) => null);
 
 final placeVisitorsProvider = FutureProvider.family<List<PlaceVisitor>, String>(
   (ref, placeId) => ref.watch(placeRepositoryProvider).fetchVisitors(placeId),
+  retry: (_, _) => null,
 );

@@ -130,12 +130,15 @@ void main() {
     expect(find.text('followers-destination'), findsOneWidget);
     GoRouter.of(tester.element(find.text('followers-destination'))).go('/');
     await tester.pumpAndSettle();
+    await tester.tap(find.text('12 뱃지'));
+    await tester.pumpAndSettle();
+    expect(find.text('수집한 뱃지'), findsOneWidget);
     await tester.tap(find.text('수집한 뱃지'));
     await tester.pumpAndSettle();
     expect(find.text('badge-destination'), findsOneWidget);
   });
 
-  testWidgets('own post keeps the Figma 160px image and settings actions', (
+  testWidgets('own post uses a square photo card and keeps settings actions', (
     tester,
   ) async {
     await mount(
@@ -158,7 +161,10 @@ void main() {
       of: find.byType(ProfilePostCard),
       matching: find.byType(RemoteImage),
     );
-    expect(tester.getSize(image).height, 160);
+    expect(
+      tester.getSize(image.first).height,
+      tester.getSize(image.first).width,
+    );
     await tester.tap(find.byTooltip('설정'));
     await tester.pumpAndSettle();
     expect(find.text('로그아웃'), findsOneWidget);
@@ -193,7 +199,7 @@ void main() {
     final photo = find
         .descendant(of: cards.first, matching: find.byType(RemoteImage))
         .last;
-    expect(tester.getSize(photo).height, 100);
+    expect(tester.getSize(photo).height, tester.getSize(photo).width);
     expect(
       tester.getSize(find.widgetWithText(OutlinedButton, '팔로우')).height,
       42,

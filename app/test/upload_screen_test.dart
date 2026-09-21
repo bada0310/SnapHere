@@ -53,10 +53,6 @@ class _StubUploadRepository implements UploadRepository {
         ];
 
   @override
-  Future<List<UploadPhoto>> fetchDraftGallery() async =>
-      emptyGallery ? const [] : const [UploadPhoto(id: 'draft-1')];
-
-  @override
   Future<void> openMediaSettings() async {}
 
   @override
@@ -137,6 +133,10 @@ Widget _wrap(UploadRepository repository) {
 }
 
 Future<void> _goToForm(WidgetTester tester) async {
+  if (find.text('다음 (0)').evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const ValueKey('gallery-photo-1')));
+    await tester.pump();
+  }
   await tester.tap(find.textContaining('다음'));
   await tester.pumpAndSettle();
   expect(find.text('사진 확인'), findsOneWidget);
@@ -155,6 +155,8 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+
+    controller.togglePhoto('photo-1');
 
     for (var index = 2; index <= UploadLimits.photoCount; index++) {
       expect(
@@ -198,6 +200,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
 
     controller.applyEventContext(
       const UploadEventContext(
@@ -349,6 +352,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
     await controller.showForm();
     controller.addUserTag('#전주 한옥마을');
     expect(
@@ -404,7 +408,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('upload-gallery-grid')), findsOneWidget);
-    expect(find.text('다음 (1)'), findsOneWidget);
+    expect(find.text('다음 (0)'), findsOneWidget);
 
     await _goToForm(tester);
     expect(find.text('전주 한옥마을의 봄'), findsOneWidget);
@@ -442,7 +446,7 @@ void main() {
 
     expect(find.byKey(const Key('upload-gallery-grid')), findsOneWidget);
     expect(find.text('업로드 완료!'), findsNothing);
-    expect(find.text('다음 (1)'), findsOneWidget);
+    expect(find.text('다음 (0)'), findsOneWidget);
   });
 
   testWidgets('제목과 장소가 없으면 검증 메시지를 표시하고 장소 검색이 동작한다', (tester) async {
@@ -489,6 +493,7 @@ void main() {
       addTearDown(container.dispose);
       await container.read(uploadControllerProvider.future);
       final controller = container.read(uploadControllerProvider.notifier);
+      controller.togglePhoto('photo-1');
       final form = controller.showForm();
       controller.selectPlace(manualPlace);
       if (outcome == 'error') {
@@ -507,16 +512,20 @@ void main() {
     }
   });
 
-  testWidgets('최근과 임시 저장 피드 탭이 전환되고 취소 동작을 확인한다', (tester) async {
+  testWidgets('사진을 자동 선택하지 않고 마지막 한 장도 해제한다', (tester) async {
     await tester.binding.setSurfaceSize(const Size(412, 893));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_wrap(_StubUploadRepository()));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('gallery-photo-1')), findsOneWidget);
-    await tester.tap(find.text('임시 저장 피드'));
+    expect(find.text('다음 (0)'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('gallery-photo-1')));
     await tester.pump();
-    expect(find.byKey(const ValueKey('gallery-draft-1')), findsOneWidget);
+    expect(find.text('다음 (1)'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('gallery-photo-1')));
+    await tester.pump();
+    expect(find.text('다음 (0)'), findsOneWidget);
 
     await tester.tap(find.byTooltip('업로드 취소'));
     await tester.pumpAndSettle();
@@ -540,15 +549,15 @@ void main() {
     );
   });
 
-  testWidgets('촬영 좌표가 없으면 게시 전에 낮음 등급 이유를 알린다', (tester) async {
+  testWidgets('촬영 좌표가 없어도 위치 등급 경고를 표시하지 않는다', (tester) async {
     await tester.binding.setSurfaceSize(const Size(412, 893));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(_wrap(_StubUploadRepository(cameraPhoto: true)));
     await tester.pumpAndSettle();
     await _goToForm(tester);
 
-    expect(find.byKey(const Key('camera-location-warning')), findsOneWidget);
-    expect(find.textContaining('낮음 등급으로 등록됩니다'), findsOneWidget);
+    expect(find.byKey(const Key('camera-location-warning')), findsNothing);
+    expect(find.textContaining('낮음 등급으로 등록됩니다'), findsNothing);
   });
 
   testWidgets('시스템 뒤로가기는 작성 단계부터 한 단계씩 이동한다', (tester) async {
@@ -618,6 +627,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
     await controller.showForm();
     final first = controller.submit();
     await controller.submit();

@@ -10,6 +10,7 @@ class CommentInputBar extends StatelessWidget {
   const CommentInputBar({
     required this.composer,
     required this.controller,
+    required this.focusNode,
     required this.onSubmit,
     this.myProfileImageUrl,
     super.key,
@@ -17,6 +18,7 @@ class CommentInputBar extends StatelessWidget {
 
   final CommentComposer composer;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final Future<void> Function() onSubmit;
   final String? myProfileImageUrl;
 
@@ -53,6 +55,10 @@ class CommentInputBar extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: controller,
+                      focusNode: focusNode,
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.textPrimary),
+                      cursorColor: AppColors.brand,
                       enabled: !state.isSubmitting,
                       minLines: 1,
                       maxLines: 4,
@@ -64,6 +70,7 @@ class CommentInputBar extends StatelessWidget {
                         // 여러 줄로 늘어나야 해서 전역 고정 높이를 푼다.
                         constraints: const BoxConstraints(minHeight: 38),
                         fillColor: AppColors.surface,
+                        filled: true,
                       ),
                     ),
                   ),

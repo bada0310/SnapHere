@@ -151,12 +151,11 @@ class PostCreateValidatorTest {
     // ───────────────────────────────────────────── 촬영 시각 (PST-023)
 
     @Test
-    @DisplayName("카메라 경로에 촬영 시각이 없으면 POST_INVALID_TAKEN_AT")
-    void 카메라_촬영시각_필수() {
+    @DisplayName("카메라 경로도 촬영 시각 없이 장소만 연결할 수 있다")
+    void 카메라_촬영시각_선택() {
         CreatePostRequest req = new CreatePostRequest(1L, null, null, "ko",
                 List.of(image(USER, 1)), List.of("서울"), PhotoSource.CAMERA, null, null, null);
-        assertThatThrownBy(() -> validator.validateTakenAt(req, NOW))
-                .satisfies(t -> assertThat(codeOf(t)).isEqualTo(ErrorCode.POST_INVALID_TAKEN_AT));
+        validator.validateTakenAt(req, NOW);
     }
 
     @Test

@@ -14,8 +14,8 @@ class CommunityPostCard extends StatelessWidget {
   /// `AuthorRow`가 hug로 계산되는 높이 = 아바타 크기.
   static const avatarSize = 34.0;
 
-  /// `MediaArea` 348 × 160.
-  static const mediaAspectRatio = 348 / 160;
+  /// 사진 피드는 가로·세로 원본에 관계없이 일관된 정사각 썸네일로 보여 준다.
+  static const mediaAspectRatio = 1.0;
 
   final CommunityPost post;
   final VoidCallback? onTap;
@@ -43,12 +43,13 @@ class CommunityPostCard extends StatelessWidget {
                 spacing: AppSpacing.sm,
                 children: [
                   Text(post.title, style: textTheme.titleMedium),
-                  Text(
-                    post.content,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodyMedium,
-                  ),
+                  if (post.content.isNotEmpty)
+                    Text(
+                      post.content,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium,
+                    ),
                 ],
               ),
               _Footer(post: post),

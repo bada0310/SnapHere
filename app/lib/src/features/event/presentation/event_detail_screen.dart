@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 import 'package:snap_here/src/features/event/application/event_providers.dart';
@@ -21,9 +22,15 @@ class EventDetailScreen extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: '공유',
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('공유 기능은 운영 링크 연결 후 제공됩니다.')),
-            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final url =
+                  'https://snaphere.app/events/${Uri.encodeComponent(eventId)}';
+              await Clipboard.setData(ClipboardData(text: url));
+              messenger.showSnackBar(
+                const SnackBar(content: Text('이벤트 공유 링크를 복사했어요.')),
+              );
+            },
             icon: const Icon(Icons.ios_share_outlined),
           ),
         ],

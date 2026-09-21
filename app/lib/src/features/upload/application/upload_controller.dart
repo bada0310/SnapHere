@@ -21,8 +21,6 @@ final uploadRepositoryProvider = Provider<UploadRepository>((ref) {
 
 enum UploadStep { gallery, review, form, complete }
 
-enum UploadGalleryTab { recent, drafts }
-
 abstract final class UploadLimits {
   static const photoCount = 4;
   static const tagCount = 10;
@@ -33,9 +31,7 @@ abstract final class UploadLimits {
 class UploadState {
   const UploadState({
     required this.recentPhotos,
-    required this.draftPhotos,
     this.step = UploadStep.gallery,
-    this.galleryTab = UploadGalleryTab.recent,
     this.selectedPhotoIds = const [],
     this.primaryPhotoId,
     this.title = '',
@@ -53,9 +49,7 @@ class UploadState {
   });
 
   final List<UploadPhoto> recentPhotos;
-  final List<UploadPhoto> draftPhotos;
   final UploadStep step;
-  final UploadGalleryTab galleryTab;
   final List<String> selectedPhotoIds;
   final String? primaryPhotoId;
   final String title;
@@ -84,30 +78,22 @@ class UploadState {
         UploadLimits.tagCount,
       );
 
-  List<UploadPhoto> get photos => [...recentPhotos, ...draftPhotos];
-
-  List<UploadPhoto> get visiblePhotos => switch (galleryTab) {
-    UploadGalleryTab.recent => recentPhotos,
-    UploadGalleryTab.drafts => draftPhotos,
-  };
-
   List<UploadPhoto> get selectedPhotos => selectedPhotoIds
-      .map((id) => photos.firstWhere((photo) => photo.id == id))
+      .map((id) => recentPhotos.firstWhere((photo) => photo.id == id))
       .toList();
 
   UploadPhoto? get primaryPhoto {
     final id = primaryPhotoId;
     if (id == null) return null;
-    return photos.where((photo) => photo.id == id).firstOrNull;
+    return recentPhotos.where((photo) => photo.id == id).firstOrNull;
   }
 
   UploadState copyWith({
     List<UploadPhoto>? recentPhotos,
-    List<UploadPhoto>? draftPhotos,
     UploadStep? step,
-    UploadGalleryTab? galleryTab,
     List<String>? selectedPhotoIds,
     String? primaryPhotoId,
+    bool clearPrimaryPhoto = false,
     String? title,
     String? description,
     List<UploadPlace>? placeMatches,
@@ -125,11 +111,11 @@ class UploadState {
     List<String>? userTags,
   }) => UploadState(
     recentPhotos: recentPhotos ?? this.recentPhotos,
-    draftPhotos: draftPhotos ?? this.draftPhotos,
     step: step ?? this.step,
-    galleryTab: galleryTab ?? this.galleryTab,
     selectedPhotoIds: selectedPhotoIds ?? this.selectedPhotoIds,
-    primaryPhotoId: primaryPhotoId ?? this.primaryPhotoId,
+    primaryPhotoId: clearPrimaryPhoto
+        ? null
+        : primaryPhotoId ?? this.primaryPhotoId,
     title: title ?? this.title,
     description: description ?? this.description,
     placeMatches: placeMatches ?? this.placeMatches,
@@ -163,27 +149,7 @@ class UploadController extends AsyncNotifier<UploadState> {
 
   @override
   Future<UploadState> build() async {
-    final results = await Future.wait([
-      _repository.fetchGallery(),
-      _repository.fetchDraftGallery(),
-    ]);
-    final recent = results[0];
-    final drafts = results[1];
-    final first = (recent.isNotEmpty ? recent : drafts).firstOrNull;
-    return UploadState(
-      recentPhotos: recent,
-      draftPhotos: drafts,
-      galleryTab: recent.isEmpty && drafts.isNotEmpty
-          ? UploadGalleryTab.drafts
-          : UploadGalleryTab.recent,
-      selectedPhotoIds: first == null ? const [] : [first.id],
-      primaryPhotoId: first?.id,
-    );
-  }
-
-  void selectGalleryTab(UploadGalleryTab tab) {
-    final current = state.requireValue;
-    state = AsyncData(current.copyWith(galleryTab: tab));
+    return UploadState(recentPhotos: await _repository.fetchGallery());
   }
 
   bool addCapturedPhoto(UploadPhoto photo) {
@@ -193,7 +159,6 @@ class UploadController extends AsyncNotifier<UploadState> {
     state = AsyncData(
       current.copyWith(
         recentPhotos: [photo, ...current.recentPhotos],
-        galleryTab: UploadGalleryTab.recent,
         selectedPhotoIds: selected,
         primaryPhotoId: photo.id,
       ),
@@ -205,7 +170,6 @@ class UploadController extends AsyncNotifier<UploadState> {
     final current = state.requireValue;
     final selected = [...current.selectedPhotoIds];
     if (selected.contains(id)) {
-      if (selected.length == 1) return;
       selected.remove(id);
     } else {
       if (_hasReachedPhotoLimit(current)) return;
@@ -214,9 +178,11 @@ class UploadController extends AsyncNotifier<UploadState> {
     state = AsyncData(
       current.copyWith(
         selectedPhotoIds: selected,
-        primaryPhotoId: selected.contains(current.primaryPhotoId)
+        primaryPhotoId:
+            selected.isNotEmpty && selected.contains(current.primaryPhotoId)
             ? current.primaryPhotoId
-            : selected.first,
+            : selected.firstOrNull,
+        clearPrimaryPhoto: selected.isEmpty,
       ),
     );
   }
@@ -270,7 +236,7 @@ class UploadController extends AsyncNotifier<UploadState> {
           selectedPlace: places.firstOrNull,
           clearSelectedPlace: places.isEmpty,
           isMatchingLocation: false,
-          locationMessage: places.isEmpty ? '주변 장소를 찾지 못했어요.' : null,
+          locationMessage: places.isEmpty ? '장소를 검색해 선택해 주세요.' : null,
           clearLocationMessage: places.isNotEmpty,
         ),
       );

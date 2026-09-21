@@ -345,8 +345,11 @@ void main() {
     final container = await mount(tester, withTagFixture: true);
     container.read(appRouterProvider).push('/photos/pst_1');
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('댓글 28개'));
-    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(
+      find.text('댓글 28개'),
+      find.byType(ListView),
+      const Offset(0, -300),
+    );
     await tester.tap(find.text('댓글 28개'));
     await tester.pumpAndSettle();
     expect(find.byType(CommentsScreen), findsOneWidget);

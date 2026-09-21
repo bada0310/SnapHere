@@ -285,18 +285,6 @@ class _ResultsView extends ConsumerWidget {
       data: (data) {
         if (data == null) return const SizedBox.shrink();
 
-        if (data.isEmpty) {
-          // 결과가 없을 때는 필터 칩도 숨긴다 (`03_커뮤니티_검색_없음`).
-          return CommunityEmptyState(
-            icon: Icons.cancel_outlined,
-            title: '검색 결과가 없어요',
-            description: '다른 검색어로 다시 시도해 보세요.\n지역이나 구체적인 장소명을 넣으시면 도움이 됩니다.',
-            actionLabel: '검색어 수정',
-            onAction: onEditKeyword,
-            actionStyle: CommunityEmptyActionStyle.outlined,
-          );
-        }
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -306,61 +294,75 @@ class _ResultsView extends ConsumerWidget {
                   .read(communitySearchFilterProvider.notifier)
                   .select(value),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                AppSpacing.sm,
-              ),
-              child: _ResultCount(count: data.totalCount),
-            ),
-            Expanded(
-              child: ListView(
+            if (!data.isEmpty)
+              Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.lg,
-                  0,
+                  AppSpacing.sm,
                   AppSpacing.lg,
-                  AppSpacing.xxl,
+                  AppSpacing.sm,
                 ),
-                children: [
-                  if (data.matchedRegion != null)
-                    MatchedRegionCard(region: data.matchedRegion!),
-                  if (data.places.isNotEmpty)
-                    SearchSection(
-                      title: '장소',
-                      children: [
-                        for (final place in data.places)
-                          SearchPlaceRow(place: place),
-                      ],
-                    ),
-                  if (data.users.isNotEmpty)
-                    SearchSection(
-                      title: '사용자',
-                      children: [
-                        for (final user in data.users)
-                          SearchUserRow(user: user),
-                      ],
-                    ),
-                  if (data.tags.isNotEmpty)
-                    SearchSection(
-                      title: '태그',
-                      children: [SearchTagWrap(tags: data.tags)],
-                    ),
-                  if (data.posts.isNotEmpty) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    Text('사진', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: AppSpacing.sm),
-                    for (final post in data.posts) ...[
-                      CommunityPostCard(
-                        post: post,
-                        onTap: () => context.push('/photos/${post.postId}'),
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
-                  ],
-                ],
+                child: _ResultCount(count: data.totalCount),
               ),
+            Expanded(
+              child: data.isEmpty
+                  ? CommunityEmptyState(
+                      icon: Icons.cancel_outlined,
+                      title: '검색 결과가 없어요',
+                      description: '다른 필터를 선택하거나 검색어를 수정해 보세요.',
+                      actionLabel: '검색어 수정',
+                      onAction: onEditKeyword,
+                      actionStyle: CommunityEmptyActionStyle.outlined,
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        0,
+                        AppSpacing.lg,
+                        AppSpacing.xxl,
+                      ),
+                      children: [
+                        if (data.matchedRegion != null)
+                          MatchedRegionCard(region: data.matchedRegion!),
+                        if (data.places.isNotEmpty)
+                          SearchSection(
+                            title: '장소',
+                            children: [
+                              for (final place in data.places)
+                                SearchPlaceRow(place: place),
+                            ],
+                          ),
+                        if (data.users.isNotEmpty)
+                          SearchSection(
+                            title: '사용자',
+                            children: [
+                              for (final user in data.users)
+                                SearchUserRow(user: user),
+                            ],
+                          ),
+                        if (data.tags.isNotEmpty)
+                          SearchSection(
+                            title: '태그',
+                            children: [SearchTagWrap(tags: data.tags)],
+                          ),
+                        if (data.posts.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.lg),
+                          Text(
+                            '사진',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          for (final post in data.posts) ...[
+                            CommunityPostCard(
+                              post: post,
+                              onTap: () =>
+                                  context.push('/photos/${post.postId}'),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+                        ],
+                      ],
+                    ),
             ),
           ],
         );

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:snap_here/src/app/theme/app_theme.dart';
 import 'package:snap_here/src/core/network/cursor_page.dart';
 import 'package:snap_here/src/core/ui/remote_image.dart';
@@ -43,11 +42,6 @@ class _Repository extends HomeMapRepository {
   }
 }
 
-class _DeniedLocation extends HomeLocationService {
-  @override
-  Future<LatLng> currentPosition() async => throw Exception('위치 권한이 필요해요');
-}
-
 void main() {
   Future<_Repository> mount(WidgetTester tester, {bool empty = false}) async {
     await tester.binding.setSurfaceSize(const Size(412, 812));
@@ -74,7 +68,6 @@ void main() {
             ],
           ),
           homeMapRepositoryProvider.overrideWithValue(repository),
-          homeLocationProvider.overrideWithValue(_DeniedLocation()),
         ],
         child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
       ),
@@ -173,19 +166,23 @@ void main() {
     },
   );
 
-  testWidgets(
-    'empty selected region and denied location have recoverable feedback',
-    (tester) async {
-      await mount(tester, empty: true);
-      await tester.tap(find.byTooltip('현재 위치'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('위치 권한이 필요해요'), findsOneWidget);
-      await tester.tap(find.byTooltip('지역 목록'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('서울'));
-      await tester.pumpAndSettle();
-      expect(find.text('이번 주 이 지역의 게시글이 없어요.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('empty selected region has recoverable feedback', (tester) async {
+    await mount(tester, empty: true);
+    await tester.tap(find.byTooltip('지역 목록'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('서울'));
+    await tester.pumpAndSettle();
+    expect(find.text('이번 주 이 지역의 게시글이 없어요.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('home map does not expose current-location controls', (
+    tester,
+  ) async {
+    await mount(tester);
+    expect(find.byTooltip('현재 위치'), findsNothing);
+    await tester.tap(find.byTooltip('지역 목록'));
+    await tester.pumpAndSettle();
+    expect(find.text('현재 위치로 이동'), findsNothing);
+  });
 }

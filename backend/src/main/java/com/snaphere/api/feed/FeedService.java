@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * API-CMU-003 — 최근 피드.
@@ -64,6 +65,26 @@ public class FeedService {
             return CursorPage.empty();
         }
 
+        PostEntity last = page.get(page.size() - 1);
+        String nextCursor = hasNext
+                ? new PostCursor(last.getCreatedAt(), last.getPostId()).encode()
+                : null;
+        return CursorPage.of(assembler.summaries(page), nextCursor);
+    }
+
+    /** 현재 사용자가 팔로우한 사용자의 공개 게시글만 최신순으로 보여 준다. (CMU-001, CMU-010) */
+    @Transactional(readOnly = true)
+    public CursorPage<PostSummaryResponse> following(UUID viewerId, String cursor, Integer size) {
+        int pageSize = paging.resolve(size);
+        PostCursor decoded = PostCursor.decode(cursor);
+        List<PostEntity> rows = posts.findFollowingFeed(
+                viewerId,
+                decoded == null ? null : decoded.createdAt(),
+                decoded == null ? null : decoded.postId(),
+                PageRequest.of(0, pageSize + 1));
+        boolean hasNext = rows.size() > pageSize;
+        List<PostEntity> page = hasNext ? rows.subList(0, pageSize) : rows;
+        if (page.isEmpty()) return CursorPage.empty();
         PostEntity last = page.get(page.size() - 1);
         String nextCursor = hasNext
                 ? new PostCursor(last.getCreatedAt(), last.getPostId()).encode()

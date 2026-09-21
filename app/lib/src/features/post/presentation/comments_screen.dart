@@ -27,6 +27,7 @@ class CommentsScreen extends ConsumerStatefulWidget {
 
 class _CommentsScreenState extends ConsumerState<CommentsScreen> {
   final _input = TextEditingController();
+  final _inputFocus = FocusNode();
   late final CommentComposer _composer;
 
   @override
@@ -41,6 +42,7 @@ class _CommentsScreenState extends ConsumerState<CommentsScreen> {
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     _composer.dispose();
     super.dispose();
   }
@@ -69,6 +71,7 @@ class _CommentsScreenState extends ConsumerState<CommentsScreen> {
       parentId: parent.commentId,
       nickname: parent.author.nickname,
     );
+    _inputFocus.requestFocus();
   }
 
   Future<void> _manage(Comment comment, {required bool isReply}) async {
@@ -78,6 +81,8 @@ class _CommentsScreenState extends ConsumerState<CommentsScreen> {
       case CommentManageAction.edit:
         _input.text = comment.content ?? '';
         _composer.startEdit(commentId: comment.commentId);
+        _input.selection = TextSelection.collapsed(offset: _input.text.length);
+        _inputFocus.requestFocus();
       case CommentManageAction.delete:
         await _delete(comment, isReply: isReply);
     }
@@ -141,11 +146,19 @@ class _CommentsScreenState extends ConsumerState<CommentsScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: CommentInputBar(
-        composer: _composer,
-        controller: _input,
-        onSubmit: _submit,
-        myProfileImageUrl: me?.photoUrl,
+      bottomNavigationBar: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: CommentInputBar(
+          composer: _composer,
+          controller: _input,
+          focusNode: _inputFocus,
+          onSubmit: _submit,
+          myProfileImageUrl: me?.photoUrl,
+        ),
       ),
     );
   }

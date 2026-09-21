@@ -63,6 +63,22 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
                               @Param("cursorPostId") Long cursorPostId,
                               Pageable pageable);
 
+    @Query("""
+            select p from PostEntity p
+             where p.status = com.snaphere.api.post.PostStatus.ACTIVE
+               and exists (select f.id.followingId from Follow f
+                            where f.id.followerId = :viewerId
+                              and f.id.followingId = p.userId)
+               and (cast(:cursorCreatedAt as timestamp) is null
+                    or p.createdAt < :cursorCreatedAt
+                    or (p.createdAt = :cursorCreatedAt and p.postId < :cursorPostId))
+             order by p.createdAt desc, p.postId desc
+            """)
+    List<PostEntity> findFollowingFeed(@Param("viewerId") UUID viewerId,
+                                       @Param("cursorCreatedAt") OffsetDateTime cursorCreatedAt,
+                                       @Param("cursorPostId") Long cursorPostId,
+                                       Pageable pageable);
+
     /**
      * 행사에 참여한 공개 게시글. 최신순. (EVT-014)
      *

@@ -20,7 +20,6 @@ enum CommunitySort {
 /// `03_커뮤니티_검색결과`의 필터 칩 4개.
 enum CommunitySearchFilter {
   all('전체'),
-  author('작성자'),
   region('지역'),
   place('장소');
 

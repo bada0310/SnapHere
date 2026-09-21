@@ -30,10 +30,12 @@ void main() {
         .join('\n');
 
     expect(policy.title, '개인정보처리방침');
-    expect(policy.version, '2026-09-18');
+    expect(policy.version, '2026-09-19');
     expect(policyBody, contains('팀 너구리즈'));
     expect(policyBody, contains('felinedorcus@gmail.com'));
     expect(policyBody, contains('30일'));
+    expect(policyBody, contains('신규 게시물에는 저장하지 않습니다'));
+    expect(policyBody, contains('EXIF 메타데이터를 제거'));
     expect(consentBody, contains('30일'));
   });
 }

@@ -16,10 +16,13 @@ class _StubCommunityRepository implements CommunityRepository {
   _StubCommunityRepository({
     this.feedPosts = const [],
     this.searchPosts = const [],
+    this.failFeed = false,
   });
 
   final List<CommunityPost> feedPosts;
   final List<CommunityPost> searchPosts;
+  final bool failFeed;
+  int feedCalls = 0;
   List<String> recent = ['전주 한옥마을'];
 
   @override
@@ -27,6 +30,8 @@ class _StubCommunityRepository implements CommunityRepository {
     required CommunityFeedTab tab,
     required CommunitySort sort,
   }) async {
+    feedCalls += 1;
+    if (failFeed) throw StateError('feed unavailable');
     if (tab == CommunityFeedTab.following) {
       return const CommunityFeed(posts: []);
     }
@@ -139,6 +144,17 @@ void main() {
       expect(find.text('+4'), findsOneWidget);
     });
 
+    testWidgets('피드 실패는 자동 재시도 루프 없이 오류 화면으로 전환한다', (tester) async {
+      final repository = _StubCommunityRepository(failFeed: true);
+      await tester.pumpWidget(_wrap(const CommunityScreen(), repository));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('피드를 불러오지 못했어요'), findsOneWidget);
+      expect(find.text('다시 시도'), findsOneWidget);
+      expect(repository.feedCalls, 1);
+    });
+
     testWidgets('검색창을 누르면 검색 화면으로 이동한다', (tester) async {
       final repository = _StubCommunityRepository(feedPosts: [_post()]);
       await tester.pumpWidget(_wrap(const CommunityScreen(), repository));
@@ -153,6 +169,20 @@ void main() {
   });
 
   group('CommunitySearchScreen', () {
+    testWidgets('작은 화면에서도 검색창과 취소 버튼이 넘치지 않는다', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final repository = _StubCommunityRepository(searchPosts: [_post()]);
+      await tester.pumpWidget(_wrap(const CommunitySearchScreen(), repository));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '아주 긴 지역과 장소 검색어');
+      await tester.pump();
+
+      expect(find.text('취소'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('최근·추천 검색어 칩을 보여주고 전체 삭제가 동작한다', (tester) async {
       final repository = _StubCommunityRepository();
       await tester.pumpWidget(_wrap(const CommunitySearchScreen(), repository));
@@ -177,7 +207,7 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pumpAndSettle();
 
-      expect(find.text('작성자'), findsOneWidget);
+      expect(find.text('작성자'), findsNothing);
       expect(find.text('지역'), findsOneWidget);
       expect(find.text('장소'), findsOneWidget);
       expect(find.textContaining('검색 결과'), findsOneWidget);
@@ -195,6 +225,12 @@ void main() {
 
       expect(find.text('검색 결과가 없어요'), findsOneWidget);
       expect(find.text('검색어 수정'), findsOneWidget);
+      expect(find.text('전체'), findsOneWidget);
+      expect(find.text('지역'), findsOneWidget);
+      await tester.tap(find.text('지역'));
+      await tester.pumpAndSettle();
+      expect(find.text('검색 결과가 없어요'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       expect(find.byType(CommunityPostCard), findsNothing);
     });
   });

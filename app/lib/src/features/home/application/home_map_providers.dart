@@ -4,18 +4,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/auth/application/auth_controller.dart';
 import 'package:snap_here/src/features/home/data/home_map_repository.dart';
-import 'package:snap_here/src/features/map/presentation/count_marker.dart';
 
 final homeMapRepositoryProvider = Provider<HomeMapRepository>(
   (ref) => HomeMapRepository(
     accessToken: ref.watch(authControllerProvider).value?.accessToken,
   ),
 );
-final countMarkerProvider = FutureProvider.autoDispose
-    .family<BitmapDescriptor, ({int count, bool selected})>(
-      (ref, args) => countMarker(args.count, selected: args.selected),
-    );
-
 final homeLocationProvider = Provider<HomeLocationService>(
   (ref) => HomeLocationService(),
 );

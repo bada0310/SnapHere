@@ -102,10 +102,14 @@ class PhotoMarkerCandidate {
   const PhotoMarkerCandidate({
     required this.postId,
     required this.thumbnailUrl,
+    this.lat,
+    this.lng,
   });
 
   final String postId;
   final String thumbnailUrl;
+  final double? lat;
+  final double? lng;
 }
 
 /// 셀 위에 얹는 대표 사진과 로컬 교체 후보 (MAP-020~023).
@@ -115,40 +119,55 @@ class PhotoMarker {
     required this.cellKey,
     required this.lat,
     required this.lng,
+    this.postCount = 1,
+    this.postCountIsLowerBound = false,
     this.candidates = const [],
-    this.rotationIntervalMs = 3000,
   });
 
   factory PhotoMarker.fromJson(Map<String, Object?> json) {
-    final candidates = (json['candidates'] as List?) ?? const [];
+    final rawCandidates = (json['candidates'] as List?) ?? const [];
+    final parsedCandidates = rawCandidates
+        .whereType<Map>()
+        .map((item) {
+          final data = Map<String, Object?>.from(item);
+          final place = data['place'] is Map
+              ? Map<String, Object?>.from(data['place'] as Map)
+              : const <String, Object?>{};
+          return PhotoMarkerCandidate(
+            postId: data['postId'] as String? ?? '',
+            thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
+            lat: (place['lat'] as num?)?.toDouble(),
+            lng: (place['lng'] as num?)?.toDouble(),
+          );
+        })
+        .where((item) => item.postId.isNotEmpty && item.thumbnailUrl.isNotEmpty)
+        .toList(growable: false);
+    final representative = parsedCandidates.firstOrNull;
+    final exactPostCount = (json['postCount'] as num?)?.toInt();
+    final legacyResponse = exactPostCount == null;
+    final fallbackCount = parsedCandidates.isEmpty
+        ? 1
+        : parsedCandidates.length;
     return PhotoMarker(
       cellKey: json['cellKey'] as String? ?? '',
-      lat: (json['lat'] as num?)?.toDouble() ?? 0,
-      lng: (json['lng'] as num?)?.toDouble() ?? 0,
-      candidates: List.unmodifiable(
-        candidates
-            .whereType<Map>()
-            .map((item) {
-              final data = Map<String, Object?>.from(item);
-              return PhotoMarkerCandidate(
-                postId: data['postId'] as String? ?? '',
-                thumbnailUrl: data['thumbnailUrl'] as String? ?? '',
-              );
-            })
-            .where(
-              (item) => item.postId.isNotEmpty && item.thumbnailUrl.isNotEmpty,
-            )
-            .take(10),
-      ),
-      rotationIntervalMs: (json['rotationIntervalMs'] as num?)?.toInt() ?? 3000,
+      lat: legacyResponse && representative?.lat != null
+          ? representative!.lat!
+          : (json['lat'] as num?)?.toDouble() ?? 0,
+      lng: legacyResponse && representative?.lng != null
+          ? representative!.lng!
+          : (json['lng'] as num?)?.toDouble() ?? 0,
+      postCount: exactPostCount ?? fallbackCount,
+      postCountIsLowerBound: legacyResponse && parsedCandidates.length >= 10,
+      candidates: List.unmodifiable(parsedCandidates.take(1)),
     );
   }
 
   final String cellKey;
   final double lat;
   final double lng;
+  final int postCount;
+  final bool postCountIsLowerBound;
   final List<PhotoMarkerCandidate> candidates;
-  final int rotationIntervalMs;
 }
 
 class MapFailure implements Exception {

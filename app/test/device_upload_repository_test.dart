@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:image/image.dart' as image;
 import 'package:snap_here/src/core/network/api_client.dart';
 import 'package:snap_here/src/features/upload/application/upload_controller.dart';
 import 'package:snap_here/src/features/upload/data/device_upload_repository.dart';
@@ -25,9 +26,6 @@ class _DeviceRepository extends DeviceUploadRepository {
 
   @override
   Future<List<UploadPhoto>> fetchGallery() async => [photo];
-
-  @override
-  Future<List<UploadPhoto>> fetchDraftGallery() async => [];
 }
 
 const _created = {
@@ -63,8 +61,11 @@ void main() {
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('snaphere-upload-test-');
+    final source = image.Image(width: 2, height: 2)
+      ..exif.gpsIfd[0x0001] = image.IfdValueAscii('N')
+      ..textData = {'comment': 'private metadata'};
     final file = await File('${directory.path}/photo.jpg')
-        .writeAsBytes([1, 2, 3]);
+        .writeAsBytes(image.encodeJpg(source));
     final photo = UploadPhoto(id: 'photo-1', filePath: file.path);
     draft = UploadDraft(
       photos: [photo],
@@ -113,6 +114,40 @@ void main() {
     );
   }
 
+  test('사진 좌표로 자동 주변 장소 조회를 하지 않는다', () async {
+    final repo = repository(
+      respond: (request) => request.url.path == '/api/v1/places/nearby'
+          ? _data({
+              'exactMatch': {
+                'placeId': 'plc_1',
+                'title': '전주 한옥마을',
+                'addr1': '전북 전주시 완산구',
+                'distanceM': 25,
+              },
+              'candidates': [
+                {
+                  'placeId': 'plc_1',
+                  'title': '전주 한옥마을',
+                  'addr1': '전북 전주시 완산구',
+                  'distanceM': 25,
+                },
+              ],
+            })
+          : null,
+    );
+
+    final places = await repo.matchPlaces(
+      const UploadPhoto(
+        id: 'located-photo',
+        latitude: 35.814,
+        longitude: 127.153,
+      ),
+    );
+
+    expect(places, isEmpty);
+    expect(requests, isEmpty);
+  });
+
   test('서버의 실제 201 응답으로 완료 전환하고 게시글 번호와 뱃지를 유지한다', () async {
     final container = ProviderContainer(
       overrides: [uploadRepositoryProvider.overrideWithValue(repository())],
@@ -120,6 +155,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
     controller.applyEventContext(
       UploadEventContext(
         eventId: draft.eventId!,
@@ -145,7 +181,15 @@ void main() {
     expect(state.result?.badgeTitle, '사천 에어쇼');
     expect(state.result?.badgeDescription, '행사 참여 기념');
     expect(requests.map((r) => r.method), ['POST', 'PUT', 'POST']);
-    expect(requests[1].bodyBytes, [1, 2, 3]);
+    expect(requests[1].bodyBytes, isNot([1, 2, 3]));
+    expect(requests[1].bodyBytes.take(2), [0xff, 0xd8]);
+    final original = image.decodeJpg(
+      await File(draft.primaryPhoto.filePath!).readAsBytes(),
+    );
+    expect(original?.exif.isEmpty, isFalse);
+    final uploaded = image.decodeJpg(requests[1].bodyBytes);
+    expect(uploaded?.exif.isEmpty, isTrue);
+    expect(uploaded?.textData, anyOf(isNull, isEmpty));
     expect(requests[1].headers['authorization'], isNull);
     final body = jsonDecode(requests.last.body) as Map;
     expect(body['placeId'], 1);
@@ -185,6 +229,7 @@ void main() {
     addTearDown(container.dispose);
     await container.read(uploadControllerProvider.future);
     final controller = container.read(uploadControllerProvider.notifier);
+    controller.togglePhoto('photo-1');
     controller.selectPlace(
       const UploadPlace(id: 'plc_2zq', name: '은구비 공원', address: ''),
     );
@@ -258,8 +303,8 @@ void main() {
     expect(body['eventId'], 2);
   });
 
-  test('카메라 촬영 시각과 좌표를 행사 게시글 요청에 그대로 전달한다', () async {
-    final takenAt = DateTime.parse('2026-09-18T10:20:30+09:00');
+  test('카메라 사진은 기기 안에서 계산한 등급만 등록 요청에 전달한다', () async {
+    final takenAt = DateTime.now().subtract(const Duration(minutes: 1));
     final photo = UploadPhoto(
       id: 'camera-1',
       filePath: draft.primaryPhoto.filePath,
@@ -274,39 +319,46 @@ void main() {
         primaryPhoto: photo,
         title: draft.title,
         description: draft.description,
+        place: UploadPlace(
+          id: draft.place.id,
+          name: draft.place.name,
+          address: draft.place.address,
+          latitude: 35.003,
+          longitude: 128.064,
+        ),
+        eventId: draft.eventId,
+      ),
+    );
+    final body = jsonDecode(requests.last.body) as Map;
+    expect(body['source'], 'CAMERA');
+    expect(body['localTier'], 'HIGH');
+    expect(body['localWithinRadius'], isTrue);
+    expect(body.containsKey('takenAt'), isFalse);
+    expect(body.containsKey('lat'), isFalse);
+    expect(body.containsKey('lng'), isFalse);
+    expect(body['eventId'], 2);
+    expect(photo.copyWith(filePath: photo.filePath).takenAt, takenAt);
+  });
+
+  test('촬영 시각이 없는 카메라 사진도 장소만 연결해 등록한다', () async {
+    final photo = UploadPhoto(
+      id: 'camera-1',
+      filePath: draft.primaryPhoto.filePath,
+      source: UploadPhotoSource.camera,
+    );
+    await repository().createPost(
+      UploadDraft(
+        photos: [photo],
+        primaryPhoto: photo,
+        title: draft.title,
+        description: draft.description,
         place: draft.place,
         eventId: draft.eventId,
       ),
     );
     final body = jsonDecode(requests.last.body) as Map;
     expect(body['source'], 'CAMERA');
-    expect(body['takenAt'], takenAt.toUtc().toIso8601String());
-    expect(body['lat'], 35.003);
-    expect(body['lng'], 128.064);
-    expect(body['eventId'], 2);
-    expect(photo.copyWith(filePath: photo.filePath).takenAt, takenAt);
-  });
-
-  test('촬영 시각이 없는 카메라 사진은 서버 요청 전에 멈춘다', () async {
-    final photo = UploadPhoto(
-      id: 'camera-1',
-      filePath: draft.primaryPhoto.filePath,
-      source: UploadPhotoSource.camera,
-    );
-    await expectLater(
-      repository().createPost(
-        UploadDraft(
-          photos: [photo],
-          primaryPhoto: photo,
-          title: draft.title,
-          description: draft.description,
-          place: draft.place,
-          eventId: draft.eventId,
-        ),
-      ),
-      _failure(UploadFailureReason.invalidTakenAt),
-    );
-    expect(requests, isEmpty);
+    expect(body.containsKey('takenAt'), isFalse);
   });
 
   test('장소 이름이 비어 자동 태그를 만들 수 없으면 사진 준비 전에 장소 재선택을 안내한다', () async {
@@ -349,14 +401,12 @@ void main() {
     }
   });
 
-  test('태그 추천과 등급 미리보기도 같은 장소·행사 번호를 사용한다', () async {
+  test('태그 추천은 장소·행사 번호를 사용하고 등급 미리보기는 서버를 호출하지 않는다', () async {
     final repo = repository(
       respond: (request) => request.url.path == '/api/v1/tags/suggestions'
           ? _data([
               {'name': '공원'},
             ])
-          : request.url.path == '/api/v1/posts/tier-preview'
-          ? _data({'tier': 'LOW'})
           : null,
     );
     expect(await repo.suggestTags(placeId: 'plc_2zq', eventId: 'evt_10'), [
@@ -365,16 +415,14 @@ void main() {
     expect(requests.single.url.queryParameters['placeId'], '3878');
     expect(requests.single.url.queryParameters['eventId'], '36');
     expect(
-      (await repo.previewTier(
+      await repo.previewTier(
         placeId: 'plc_2zq',
         eventId: 'evt_10',
         fromCamera: false,
-      ))?.tier,
-      'LOW',
+      ),
+      isNull,
     );
-    final body = jsonDecode(requests.last.body) as Map;
-    expect(body['placeId'], 3878);
-    expect(body['eventId'], 36);
+    expect(requests, hasLength(1));
   });
 
   test('잘못된 장소·행사 ID는 사진 준비 요청 전에 구체적으로 안내한다', () async {
@@ -620,9 +668,12 @@ void main() {
     expect(requests, hasLength(1));
   });
 
-  test('HEIC 원본은 서버가 지원하는 실제 형식으로 업로드 주소를 요청한다', () async {
-    final file = await File('${directory.path}/photo.heic')
-        .writeAsBytes([1, 2]);
+  test('원본 확장자와 무관하게 메타데이터 없는 JPEG로 업로드한다', () async {
+    final file = await File('${directory.path}/photo.heic').writeAsBytes(
+      base64Decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      ),
+    );
     final photo = draft.primaryPhoto.copyWith(filePath: file.path);
     await repository().createPost(
       UploadDraft(
@@ -635,6 +686,6 @@ void main() {
       ),
     );
     final body = jsonDecode(requests.first.body) as Map;
-    expect((body['files'] as List).single['mimeType'], 'image/heic');
+    expect((body['files'] as List).single['mimeType'], 'image/jpeg');
   });
 }

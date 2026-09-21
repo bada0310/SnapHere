@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -42,7 +41,6 @@ class _MapHarness extends ConsumerWidget {
       enabled: camera.active,
       child: PhotoMarkerLayer(
         photos: photos.value ?? const [],
-        zoom: camera.zoom,
         builder: (markers) => SnapMap(markers: markers),
       ),
     );
@@ -56,10 +54,7 @@ void main() {
   final firstIcon = BitmapDescriptor.defaultMarkerWithHue(60);
   final secondIcon = BitmapDescriptor.defaultMarkerWithHue(120);
 
-  Future<void> mount(
-    WidgetTester tester, {
-    Completer<BitmapDescriptor>? second,
-  }) async {
+  Future<void> mount(WidgetTester tester) async {
     requests = [];
     camera = ValueNotifier((viewport: _viewport, zoom: 6, active: true));
     final repository = ApiMapRepository(
@@ -103,9 +98,9 @@ void main() {
         overrides: [
           mapConfiguredProvider.overrideWith((_) async => false),
           mapRepositoryProvider.overrideWithValue(repository),
-          photoMarkerIconProvider.overrideWith((_, url) async {
-            if (url.endsWith('first.jpg')) return firstIcon;
-            return second == null ? secondIcon : second.future;
+          photoMarkerIconProvider.overrideWith((_, args) async {
+            if (args.url.endsWith('first.jpg')) return firstIcon;
+            return secondIcon;
           }),
         ],
         child: MaterialApp.router(routerConfig: router),
@@ -117,7 +112,7 @@ void main() {
   Marker marker(WidgetTester tester) =>
       tester.widget<SnapMap>(find.byType(SnapMap)).markers.single;
 
-  test('candidate parsing keeps ranked photos, skips missing covers and limits to ten', () {
+  test('candidate parsing keeps only the top-ranked representative photo', () {
     final photo = PhotoMarker.fromJson({
       ..._photo,
       'candidates': [
@@ -126,41 +121,60 @@ void main() {
           {'postId': 'pst_$i', 'thumbnailUrl': 'https://test/$i.jpg'},
       ],
     });
-    expect(photo.candidates, hasLength(10));
+    expect(photo.candidates, hasLength(1));
     expect(photo.candidates.first.postId, 'pst_0');
-    expect(photo.candidates.last.postId, 'pst_9');
-    expect(photo.rotationIntervalMs, 3000);
+    expect(photo.postCount, 7);
+    expect(photo.postCountIsLowerBound, false);
     expect(() => photo.candidates.clear(), throwsUnsupportedError);
   });
 
+  test('legacy grid response uses representative place and a capped candidate count', () {
+    final photo = PhotoMarker.fromJson({
+      'cellKey': 'legacy-grid-cell',
+      'lat': 37.5,
+      'lng': 127.5,
+      'candidates': [
+        for (var i = 0; i < 10; i++)
+          {
+            'postId': 'pst_$i',
+            'thumbnailUrl': 'https://test/$i.jpg',
+            'place': {'lat': 37.5588, 'lng': 127.0048},
+          },
+      ],
+    });
+
+    expect(photo.lat, 37.5588);
+    expect(photo.lng, 127.0048);
+    expect(photo.postCount, 10);
+    expect(photo.postCountIsLowerBound, true);
+    expect(photo.candidates.single.postId, 'pst_0');
+  });
+
   testWidgets(
-    'photos rotate every three seconds without querying and tap the visible post',
+    'representative photo stays fixed without querying and opens its post',
     (tester) async {
       await mount(tester);
       expect(requests.single.path, '/api/v1/map/photo-markers');
       expect(requests.single.queryParameters, _viewport.toQuery());
       expect(marker(tester).icon, firstIcon);
       expect(marker(tester).position, const LatLng(35.09, 128.07));
+      expect(marker(tester).anchor, const Offset(.5, .5));
       expect(marker(tester).consumeTapEvents, true);
-      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 9));
       expect(marker(tester).icon, firstIcon);
-      await tester.pump(const Duration(seconds: 1));
-      expect(marker(tester).icon, secondIcon);
       expect(requests, hasLength(1));
       marker(tester).onTap!();
       await tester.pumpAndSettle();
-      expect(find.text('detail pst_second'), findsOneWidget);
+      expect(find.text('detail pst_first'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
       expect(tester.takeException(), isNull);
     },
   );
 
   testWidgets(
-    'zoom fourteen fixes the first photo and viewport changes fetch new bounds',
+    'viewport changes fetch new bounds while keeping the representative photo',
     (tester) async {
       await mount(tester);
-      await tester.pump(const Duration(seconds: 3));
-      expect(marker(tester).icon, secondIcon);
       camera.value = (viewport: _viewport, zoom: 14, active: true);
       await tester.pumpAndSettle();
       expect(marker(tester).icon, firstIcon);
@@ -184,41 +198,6 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
-
-  testWidgets(
-    'slow next image keeps the old photo and its tap target until ready',
-    (tester) async {
-      final pending = Completer<BitmapDescriptor>();
-      await mount(tester, second: pending);
-      await tester.pump(const Duration(seconds: 3));
-      expect(marker(tester).icon, firstIcon);
-      expect(requests, hasLength(1));
-      pending.complete(secondIcon);
-      await tester.pumpAndSettle();
-      expect(marker(tester).icon, secondIcon);
-      marker(tester).onTap!();
-      await tester.pumpAndSettle();
-      expect(find.text('detail pst_second'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
-
-  testWidgets('inactive maps pause rotation and disposal cancels timers', (
-    tester,
-  ) async {
-    await mount(tester);
-    camera.value = (viewport: _viewport, zoom: 6, active: false);
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 9));
-    expect(marker(tester).icon, firstIcon);
-    camera.value = (viewport: _viewport, zoom: 6, active: true);
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 3));
-    expect(marker(tester).icon, secondIcon);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 9));
-    expect(tester.takeException(), isNull);
-  });
 
   testWidgets(
     'home includes the shared photo layer and camera idle synchronization',
@@ -295,25 +274,33 @@ void main() {
             .asUint8List();
         source.dispose();
         picture.dispose();
-        final icon = await photoMarkerIcon(MemoryImage(png));
+        final icon = await photoMarkerIcon(MemoryImage(png), 7);
         final serialized = icon.toJson() as List;
         expect(serialized.first, 'bytes');
         final data = serialized[1] as Map;
         expect(data['width'], 60);
-        expect(data['height'], 68);
+        expect(data['height'], 60);
         final codec = await ui.instantiateImageCodec(
           data['byteData'] as Uint8List,
         );
         final image = (await codec.getNextFrame()).image;
         final pixels = await image.toByteData();
         expect(image.width, 180);
-        expect(image.height, 204);
+        expect(image.height, 180);
+        expect(pixels!.buffer.asUint8List().sublist(0, 4), [0, 0, 0, 0]);
         expect(
-          pixels!.buffer.asUint8List().sublist(
+          pixels.buffer.asUint8List().sublist(
             (90 * 180 + 90) * 4,
             (90 * 180 + 90) * 4 + 4,
           ),
           [244, 67, 54, 255],
+        );
+        expect(
+          pixels.buffer.asUint8List().sublist(
+            (15 * 180 + 144) * 4,
+            (15 * 180 + 144) * 4 + 4,
+          ),
+          [122, 221, 242, 255],
         );
         image.dispose();
         codec.dispose();
@@ -329,7 +316,7 @@ const _photo = {
   'cellKey': 'weekly-cell',
   'lat': 35.09,
   'lng': 128.07,
-  'rotationIntervalMs': 3000,
+  'postCount': 7,
   'candidates': [
     {
       'postId': 'pst_first',

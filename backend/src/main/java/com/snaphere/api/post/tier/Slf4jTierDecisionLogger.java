@@ -21,10 +21,10 @@ public class Slf4jTierDecisionLogger implements TierDecisionLogger {
     public void record(Long postId, UUID userId, long placeId, Long eventId,
                        TierInput input, TierDecision decision) {
         log.info("tier={} reason={} postId={} userId={} placeId={} eventId={} "
-                        + "source={} takenAt={} hasCoord={} distanceM={} radiusM={} daysSinceTaken={} "
+                        + "source={} hasTakenAt={} hasCoord={} distanceM={} radiusM={} daysSinceTaken={} "
                         + "thresholdHighMin={} thresholdMediumDays={} decidedAt={}",
                 decision.tier(), decision.reason(), postId, userId, placeId, eventId,
-                input.source(), input.takenAt(),
+                input.source(), input.takenAt() != null,
                 decision.hasTakenCoordinate(), decision.distanceM(), decision.appliedRadiusM(),
                 decision.daysSinceTaken(), decision.thresholds().highWithinMinutes(),
                 decision.thresholds().mediumWithinDays(), decision.decidedAt());

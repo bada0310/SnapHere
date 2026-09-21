@@ -13,6 +13,10 @@ Future<void> confirmAccountDeletion(BuildContext context, WidgetRef ref) async {
   final contentAction = await showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
+      actionsAlignment: MainAxisAlignment.end,
+      actionsOverflowAlignment: OverflowBarAlignment.end,
+      actionsOverflowDirection: VerticalDirection.down,
+      actionsOverflowButtonSpacing: AppSpacing.xs,
       title: const Text('계정을 삭제할까요?'),
       content: Consumer(
         builder: (context, ref, _) {
@@ -44,10 +48,18 @@ Future<void> confirmAccountDeletion(BuildContext context, WidgetRef ref) async {
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          ),
           onPressed: () => Navigator.pop(context),
           child: const Text('취소'),
         ),
         TextButton(
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          ),
           onPressed: () => Navigator.pop(context, 'KEEP_ANONYMIZED'),
           child: const Text('익명으로 보존'),
         ),
@@ -55,6 +67,8 @@ Future<void> confirmAccountDeletion(BuildContext context, WidgetRef ref) async {
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.error,
             foregroundColor: Colors.white,
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
           ),
           onPressed: () => Navigator.pop(context, 'DELETE_ALL'),
           child: const Text('게시물도 삭제'),

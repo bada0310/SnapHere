@@ -7,16 +7,26 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:snap_here/src/app/theme/app_tokens.dart';
 
 final photoMarkerIconProvider = FutureProvider.autoDispose
-    .family<BitmapDescriptor, String>((ref, url) async {
-      // 교체할 때마다 같은 썸네일을 다운로드·변환하지 않는다.
+    .family<
+      BitmapDescriptor,
+      ({String url, int count, bool countIsLowerBound})
+    >((ref, args) async {
       final link = ref.keepAlive();
       final expiry = Timer(const Duration(minutes: 1), link.close);
       ref.onDispose(expiry.cancel);
-      return photoMarkerIcon(ResizeImage(NetworkImage(url), width: 180));
+      return photoMarkerIcon(
+        ResizeImage(NetworkImage(args.url), width: 180),
+        args.count,
+        args.countIsLowerBound,
+      );
     });
 
-/// 공개 썸네일을 60×68 논리 픽셀의 사진 말풍선으로 만든다.
-Future<BitmapDescriptor> photoMarkerIcon(ImageProvider image) async {
+/// 공개 대표 썸네일과 클러스터 수를 하나의 60×60 원형 비트맵으로 만든다.
+Future<BitmapDescriptor> photoMarkerIcon(
+  ImageProvider image, [
+  int count = 1,
+  bool countIsLowerBound = false,
+]) async {
   ImageInfo? info;
   final stream = image.resolve(ImageConfiguration.empty);
   final loaded = Completer<ImageInfo>();
@@ -43,17 +53,10 @@ Future<BitmapDescriptor> photoMarkerIcon(ImageProvider image) async {
 
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder)..scale(3);
-  const rect = Rect.fromLTWH(3, 3, 54, 54);
-  final frame = RRect.fromRectAndRadius(rect, const Radius.circular(10));
-  final pointer = Path()
-    ..moveTo(24, 55)
-    ..lineTo(30, 65)
-    ..lineTo(36, 55)
-    ..close();
-  canvas.drawPath(pointer, Paint()..color = AppColors.brand);
-  canvas.drawRRect(frame, Paint()..color = AppColors.brandSubtle);
+  const rect = Rect.fromLTWH(4, 4, 52, 52);
+  canvas.drawOval(rect, Paint()..color = AppColors.brandSubtle);
   canvas.save();
-  canvas.clipRRect(frame);
+  canvas.clipPath(Path()..addOval(rect));
   if (info != null) {
     paintImage(
       canvas: canvas,
@@ -66,7 +69,7 @@ Future<BitmapDescriptor> photoMarkerIcon(ImageProvider image) async {
       ..color = AppColors.brand
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    canvas.drawRect(const Rect.fromLTWH(16, 18, 28, 24), paint);
+    canvas.drawRect(const Rect.fromLTWH(16, 18, 28, 22), paint);
     canvas.drawPath(
       Path()
         ..moveTo(17, 38)
@@ -78,28 +81,58 @@ Future<BitmapDescriptor> photoMarkerIcon(ImageProvider image) async {
     );
   }
   canvas.restore();
-  canvas.drawRRect(
-    frame,
+  canvas.drawOval(
+    rect,
     Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4,
   );
-  canvas.drawRRect(
-    frame,
+  canvas.drawOval(
+    rect,
     Paint()
       ..color = AppColors.brand
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1,
   );
+  const badgeCenter = Offset(48, 12);
+  canvas.drawCircle(badgeCenter, 11, Paint()..color = AppColors.brand);
+  canvas.drawCircle(
+    badgeCenter,
+    11,
+    Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2,
+  );
+  final label = countIsLowerBound
+      ? '${count.clamp(1, 99)}+'
+      : count > 99
+      ? '99+'
+      : '${count.clamp(1, 99)}';
+  final painter = TextPainter(
+    text: TextSpan(
+      text: label,
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: label.length > 2 ? 8 : 10,
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  painter.paint(
+    canvas,
+    badgeCenter - Offset(painter.width / 2, painter.height / 2),
+  );
   final picture = recorder.endRecording();
-  final raster = await picture.toImage(180, 204);
+  final raster = await picture.toImage(180, 180);
   try {
     final bytes = await raster.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(
       bytes!.buffer.asUint8List(),
       width: 60,
-      height: 68,
+      height: 60,
     );
   } finally {
     info?.dispose();

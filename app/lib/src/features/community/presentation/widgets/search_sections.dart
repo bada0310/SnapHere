@@ -35,7 +35,7 @@ class MatchedRegionCard extends StatelessWidget {
     color: AppColors.brandSubtle,
     child: ListTile(
       leading: const Icon(Icons.map_outlined, color: AppColors.brand),
-      title: Text('${region.name} 지역으로 보기'),
+      title: Text('${region.name} 사진 보기'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/regions/${region.areaCode}'),
     ),
